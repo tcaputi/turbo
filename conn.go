@@ -10,6 +10,8 @@ type connection struct {
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
 	send chan []byte
+	// Event subscriptions
+	subs map[*subSet]bool
 }
 
 func (c *connection) reader() {
