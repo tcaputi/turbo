@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	addr      = flag.String("addr", ":8080", "http service address")
+	addr      = flag.String("addr", ":4000", "http service address")
 	assets    = flag.String("assets", defaultAssetPath(), "path to assets")
 	homeTempl *template.Template
 )
@@ -27,11 +27,16 @@ func homeHandler(c http.ResponseWriter, req *http.Request) {
 	homeTempl.Execute(c, req.Host)
 }
 
+func jsHandler(res http.ResponseWriter, req *http.Request) {
+	http.ServeFile(res, req, "turbo.js")
+}
+
 func main() {
 	flag.Parse()
 	homeTempl = template.Must(template.ParseFiles(filepath.Join(*assets, "home.html")))
 	go h.run()
 	http.HandleFunc("/", homeHandler)
+	http.HandleFunc("/turbo.js", jsHandler)
 	http.HandleFunc("/ws", wsHandler)
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)

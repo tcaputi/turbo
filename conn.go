@@ -8,7 +8,6 @@ import (
 type connection struct {
 	// The websocket connection.
 	ws *websocket.Conn
-
 	// Buffered channel of outbound messages.
 	send chan []byte
 }
