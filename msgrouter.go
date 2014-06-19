@@ -1,5 +1,9 @@
 package main
 
+import (
+    "encoding/json"
+)
+
 const (
     MSG_CMD_ON          = "on"
     MSG_CMD_OFF         = "off"
@@ -14,12 +18,12 @@ const (
 )
 
 type Msg struct {
-    cmd string
-    path string
-    eventType string
-    revision int
-    value interface{}
-    ack int
+    Cmd         string
+    Path        string
+    EventType   string
+    Revision    int
+    Value       interface{}
+    Ack         int
 }
 
 type MsgRouter struct {
@@ -31,10 +35,10 @@ func (mr *MsgRouter) route(payload byte[], conn *connection) {
     err := json.Unmarshal(payload, &msg)
     if err != nil return
 
-    switch msg.cmd {
+    switch msg.Cmd {
         case MSG_CMD_ON:
-            msgBus.subscribe(msg.path, msg.eventType, conn)
+            msgBus.subscribe(msg.Path, msg.EventType, conn)
         case MSG_CMD_OFF:
-            msgBus.unsubscribe(msg.path, msg.eventType, conn)
+            msgBus.unsubscribe(msg.Path, msg.EventType, conn)
     }
 }
