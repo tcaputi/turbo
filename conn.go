@@ -11,7 +11,7 @@ type connection struct {
 	// Buffered channel of outbound messages.
 	send chan []byte
 	// Event subscriptions
-	subs map[*subSet]bool
+	subs map[*SubSet]bool
 }
 
 func (c *connection) reader() {
@@ -42,7 +42,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	c := &connection{send: make(chan []byte, 256), ws: ws}
+	c := &connection{ send: make(chan []byte, 256), ws: ws, subs: make(map[*SubSet]bool) }
 	h.register <- c
 	defer func() { h.unregister <- c }()
 	go c.writer()

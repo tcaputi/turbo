@@ -2,12 +2,13 @@ var Turbo = (function () {
     'use strict';
 
     var CMD_ON          = 'on';
+    var CMD_OFF         = 'off';
     var CMD_SET         = 'set';
     var CMD_UPDATE      = 'update';
     var CMD_REMOVE      = 'remove';
     var CMD_TRANS_SET   = 'transSet';
     var CMD_PUSH        = 'push';
-    var CMD_GET         = 'get';
+    var CMD_TRANS_GET   = 'transGet';
     var CMD_AUTH        = 'auth';
     var CMD_UNAUTH      = 'unauth';
 
@@ -77,17 +78,17 @@ var Turbo = (function () {
         _ws = undefined;
     };
 
-    var _attemptTransSet = function _attemptTransSet(path, value, transform, done) {
+    var _attemptTransSet = function _attemptTransSet(path, value, revision, transform, done) {
         ack = _ack++;
         _send(JSON.stringify({
             'cmd': CMD_TRANS_SET,
             'path': path,
-            'basis': value,
+            'revision': revision,
             'value': transform(value),
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, newValue) {
-            if (err === 'conflict') _attemptTransSet(path, newValue, transform, done);
+        _ackCallbacks[ack] = function(err, newValue, newRevision) {
+            if (err === 'conflict') _attemptTransSet(path, newValue, newRevision, transform, done);
             else done(undefined, newValue);
         };
     };
@@ -108,7 +109,7 @@ var Turbo = (function () {
         if (!_ws) _connect(url);
     };
 
-    Client.prototype.on = function(eventType, callback, cancelCallback, context) {
+    Client.prototype.on = function(eventType, callback, context) {
         if (eventType !== 'value' &&
             eventType !== 'child_added' &&
             eventType !== 'child_changed' &&
@@ -122,19 +123,44 @@ var Turbo = (function () {
         }
 
         var self = this;
+        var path = self._path;
         _send(JSON.stringify({
             'cmd': CMD_ON,
             'eventType': eventType,
-            'path': self._path
+            'path': path
         }));
 
-        if (!_listeners[this._path]) _listeners[this._path] = {};
-        if (!_listeners[this._path][eventType]) _listeners[this._path][eventType] = [];
-        _listeners[this._path][eventType].push({
+        if (!_listeners[path]) _listeners[path] = {};
+        if (!_listeners[path][eventType]) _listeners[path][eventType] = {};
+        _listeners[path][eventType][self] = {
             callback: callback,
             context: context,
             cancelCallback: cancelCallback
-        });
+        };
+    };
+
+    Client.prototype.off = function(eventType, callback, context) {
+        if (eventType !== 'value' &&
+            eventType !== 'child_added' &&
+            eventType !== 'child_changed' &&
+            eventType !== 'child_removed' &&
+            eventType !== 'child_moved')
+            throw 'Unsupported event type \'' + eventType + '\'';
+        if (!callback || typeof callback !== 'function') throw 'Callback was not a function';
+
+        var self = this;
+        var path = self._path;
+
+        if (!_listeners[path]) return;
+        if (!_listeners[path][eventType]) return;
+        if (!_listeners[path][eventType][self]) return;
+        delete _listeners[path][eventType][self];
+
+        _send(JSON.stringify({
+            'cmd': CMD_OFF,
+            'eventType': eventType,
+            'path': path
+        }));
     };
 
     Client.prototype.child = function(childPath) {
@@ -203,13 +229,13 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_GET,
+            'cmd': CMD_TRANS_GET,
             'path': self._path,
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, value) {
+        _ackCallbacks[ack] = function(err, value, revision) {
             if (err) onComplete(err);
-            else _attemptTransSet(self._path, value, onComplete);
+            else _attemptTransSet(self._path, value, revision, onComplete);
         };
     };
 
