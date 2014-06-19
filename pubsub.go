@@ -121,7 +121,11 @@ func (p *pubSubManager) unsubscribeAll(conn *connection) {
 func (p *pubSubManager) publish(path string, eventType string, msg []byte) {
     if subManager := p.managers[path] {
         for sub := range subManager.subscribers(eventType) {
-            sub.send <- msg
+            if !(sub.send <- msg) {
+                delete(h.connections, sub)
+                close(sub.send)
+                p.unsubscribeAll(sub)
+            }
         }
     }
 }
