@@ -1,0 +1,9 @@
+{
+  "name": "turbo",
+  "version": "0.0.1",
+  "description": "Like firebase, but shitty and free.",
+  "author": "santom",
+  "devDependencies": {
+    "gulp": "^3.8.1"
+  }
+}
