@@ -32,6 +32,7 @@ func jsHandler(res http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	flag.Parse()
 	homeTempl = template.Must(template.ParseFiles(filepath.Join(*assets, "home.html")))
 	go h.run()

@@ -48,19 +48,19 @@ func (s *SubSwitch) subscribe(eventType string, conn *connection) {
 func (s *SubSwitch) unsubscribe(eventType string, conn *connection) {
     switch eventType {
         case EVENT_TYPE_VALUE:
-            if s.value == nil return
+            if s.value == nil { return }
             delete(s.value.subs, conn)
         case EVENT_TYPE_CHILD_ADDED:
-            if s.childAdded == nil return
+            if s.childAdded == nil { return }
             delete(s.childAdded.subs, conn)
         case EVENT_TYPE_CHILD_CHANGED:
-            if s.childChanged == nil return
+            if s.childChanged == nil { return }
             delete(s.childChanged.subs, conn)
         case EVENT_TYPE_CHILD_MOVED:
-            if s.childMoved == nil return
+            if s.childMoved == nil { return }
             delete(s.childMoved.subs, conn)
         case EVENT_TYPE_CHILD_REMOVED:
-            if s.childRemoved == nil return
+            if s.childRemoved == nil { return }
             delete(s.childRemoved.subs, conn)
     }
 }
@@ -68,19 +68,19 @@ func (s *SubSwitch) unsubscribe(eventType string, conn *connection) {
 func (s *SubSwitch) subscribers(eventType string) map[*connection]bool {
     switch eventType {
         case EVENT_TYPE_VALUE:
-            if s.value == nil return nil
+            if s.value == nil { return nil }
             return s.value.subs
         case EVENT_TYPE_CHILD_ADDED:
-            if s.childAdded == nil return nil
+            if s.childAdded == nil { return nil }
             return s.childAdded.subs
         case EVENT_TYPE_CHILD_CHANGED:
-            if s.childChanged == nil return nil
+            if s.childChanged == nil { return nil }
             return s.childChanged.subs
         case EVENT_TYPE_CHILD_MOVED:
-            if s.childMoved == nil return nil
+            if s.childMoved == nil { return nil }
             return s.childMoved.subs
         case EVENT_TYPE_CHILD_REMOVED:
-            if s.childRemoved == nil return nil
+            if s.childRemoved == nil { return nil }
             return s.childRemoved.subs
         default:
             return nil
@@ -92,41 +92,42 @@ type MessageBus struct {
 }
 
 func (mb *MessageBus) subscribe(path string, eventType string, conn *connection) {
-    if p.managers == nil {
-        p.managers = make(map[string]*SubSwitch)
+    if mb.managers == nil {
+        mb.managers = make(map[string]*SubSwitch)
     }
-    if !p.managers[path] {
-        p.managers[path] = &make(SubSwitch)
+    if mb.managers[path] == nil {
+        mb.managers[path] = &SubSwitch{}
     }
-    p.managers[path].subscribe(eventType, conn)
+    mb.managers[path].subscribe(eventType, conn)
 }
 
 func (mb *MessageBus) unsubscribe(path string, eventType string, conn *connection) {
-    if p.managers == nil {
+    if mb.managers == nil {
         return
     }
-    if !p.managers[path] {
+    if mb.managers[path] == nil {
         return
     }
-    p.managers[path].unsubscribe(eventType, conn)
+    mb.managers[path].unsubscribe(eventType, conn)
 }
 
 func (mb *MessageBus) unsubscribeAll(conn *connection) {
-    for subSets := range conn.subs {
-        delete(subSets, conn)
+    for subSet := range conn.subs {
+        delete(subSet.subs, conn)
     }
 }
 
 func (mb *MessageBus) publish(path string, eventType string, msg []byte) {
-    if SubSwitch := p.managers[path] {
-        for sub := range SubSwitch.subscribers(eventType) {
-            if !(sub.send <- msg) {
-                // TODO this should kill the subscriber (connection)
+    subSwitch := mb.managers[path]
+    if subSwitch != nil {
+        for sub := range subSwitch.subscribers(eventType) {
+            select {
+            case sub.send <- msg:
+            default:
+                // TODO - kill this particular connection since its dead
             }
         }
     }
 }
 
-var msgBus = &MessageBus {
-    managers: make(map[string]*SubSwitch)
-}
+var msgBus = &MessageBus { managers: make(map[string]*SubSwitch) }

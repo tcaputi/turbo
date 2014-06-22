@@ -89,6 +89,7 @@ var Turbo = (function () {
         }));
         _ackCallbacks[ack] = function(err, newValue, newRevision) {
             if (err === 'conflict') _attemptTransSet(path, newValue, newRevision, transform, done);
+            else if (err) done(err);
             else done(undefined, newValue);
         };
     };
