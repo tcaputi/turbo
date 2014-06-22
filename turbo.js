@@ -110,7 +110,7 @@ var Turbo = (function () {
         if (!_ws) _connect(url);
     };
 
-    Client.prototype.on = function(eventType, callback, context) {
+    Client.prototype.on = function(eventType, callback, cancelCallback, context) {
         if (eventType !== 'value' &&
             eventType !== 'child_added' &&
             eventType !== 'child_changed' &&
