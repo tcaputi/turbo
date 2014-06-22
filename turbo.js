@@ -48,8 +48,11 @@ var Turbo = (function () {
             console.log('Connection had an error.', evt);
         };
         _ws.onmessage = function(evt) {
+            if (!evt) return;
+            if (!evt.data) return;
+
             try {
-                var msg = JSON.parse(evt);
+                var msg = JSON.parse(evt.data);
                 switch (msg.type) {
                     case MSG_TYPE_ACK:
                         if (_ackCallbacks[msg.ack]) {

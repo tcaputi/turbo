@@ -23,11 +23,11 @@ const (
 
 type Msg struct {
 	Cmd       string          `json:"cmd"`
-	Path      string          `json:"path,omitempty"`
-	EventType string          `json:"eventType,omitempty"`
-	Revision  int             `json:"revision,omitempty"`
-	Value     json.RawMessage `json:"value,omitempty"`
-	Ack       int             `json:"ack,omitempty"`
+	Path      string          `json:"path"`
+	EventType string          `json:"eventType"`
+	Revision  int             `json:"revision"`
+	Value     json.RawMessage `json:"value"`
+	Ack       int             `json:"ack"`
 }
 
 type ValueChangeEvent struct {
@@ -38,8 +38,8 @@ type ValueChangeEvent struct {
 type MsgResponse struct {
 	Type   string      `json:"type"`
 	Error  string      `json:"err,omitempty"`
-	Result interface{} `json:"res,omitempty"`
-	Ack    int         `json:"ack,omitempty"`
+	Result interface{} `json:"res"`
+	Ack    int         `json:"ack"`
 }
 
 func hasParent(path string) bool {
@@ -51,10 +51,10 @@ func parent(path string) string {
 	return path[0:lastIndex]
 }
 
-func sendAck(conn *connection, ack int, error string, result interface{}) {
+func sendAck(conn *connection, ack int, error *string, result interface{}) {
 	response := MsgResponse{Type: MSG_RESP_TYPE_ACK, Ack: ack, Result: result}
-	if error != "" {
-		response.Error = error
+	if error != nil {
+		response.Error = *error
 	}
 	payload, err := json.Marshal(response)
 	if err == nil {
@@ -72,16 +72,21 @@ func routeRawMsg(rawMsg *rawMsg) {
 	msg := Msg{}
 	err := json.Unmarshal(payload, &msg)
 	if err != nil {
-		log.Fatalln("Msg router could npot marshal json of an incoming msg", err)
+		log.Fatalln("Msg router could not marshal json of an incoming msg", err)
 		return
 	}
 
 	switch msg.Cmd {
 	case MSG_CMD_ON:
+		log.Printf("A connection subscribed to path: '%s', event: '%s'\n", msg.Path, msg.EventType)
 		msgBus.subscribe(msg.Path, msg.EventType, conn)
+		sendAck(conn, msg.Ack, nil, nil)
 	case MSG_CMD_OFF:
+		log.Printf("A connection unsubscribed to path: '%s', event: '%s'\n", msg.Path, msg.EventType)
 		msgBus.unsubscribe(msg.Path, msg.EventType, conn)
+		sendAck(conn, msg.Ack, nil, nil)
 	case MSG_CMD_SET:
+		log.Printf("A connection has set a new value to path: '%s'\n", msg.Path)
 		// TODO run the db query
 		event, err := json.Marshal(ValueChangeEvent{msg.Path, msg.Value})
 		if err == nil {
@@ -89,8 +94,11 @@ func routeRawMsg(rawMsg *rawMsg) {
 			if hasParent(msg.Path) {
 				msgBus.publish(parent(msg.Path), EVENT_TYPE_CHILD_CHANGED, event)
 			}
+			sendAck(conn, msg.Ack, nil, nil)
 		} else {
-			log.Fatalf("Couldn't marshal value change event for set\n", msg.Cmd)
+			problem := "Couldn't marshal value change event for set\n"
+			log.Fatalf(problem, msg.Cmd)
+			sendAck(conn, msg.Ack, &problem, nil)
 		}
 	default:
 		log.Fatalf("Received msg with cmd '%s' which is unsupported\n", msg.Cmd)
