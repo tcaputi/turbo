@@ -14,13 +14,18 @@ type connection struct {
 	subs map[*SubSet]bool
 }
 
+type rawMsg struct {
+	payload []byte
+	conn    *connection
+}
+
 func (c *connection) reader() {
 	for {
 		_, message, err := c.ws.ReadMessage()
 		if err != nil {
 			break
 		}
-		h.broadcast <- message
+		h.broadcast <- &rawMsg{conn: c, payload: message}
 	}
 	c.ws.Close()
 }
@@ -42,7 +47,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	c := &connection{ send: make(chan []byte, 256), ws: ws, subs: make(map[*SubSet]bool) }
+	c := &connection{send: make(chan []byte, 256), ws: ws, subs: make(map[*SubSet]bool)}
 	h.register <- c
 	defer func() { h.unregister <- c }()
 	go c.writer()

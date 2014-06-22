@@ -59,14 +59,16 @@ func sendAck(conn *connection, ack int, error string, result interface{}) {
 	payload, err := json.Marshal(response)
 	if err == nil {
 		select {
-		case sub.send <- payload:
+		case conn.send <- payload:
 		default:
 			// TODO make this kill the conn
 		}
 	}
 }
 
-func (mr *MsgRouter) routeMsg(payload []byte, conn *connection) {
+func routeRawMsg(rawMsg *rawMsg) {
+	payload := rawMsg.payload
+	conn := rawMsg.conn
 	msg := Msg{}
 	err := json.Unmarshal(payload, &msg)
 	if err != nil {

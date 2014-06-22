@@ -39,6 +39,7 @@ func main() {
 	http.HandleFunc("/", homeHandler)
 	http.HandleFunc("/turbo.js", jsHandler)
 	http.HandleFunc("/ws", wsHandler)
+	log.Println("Turbo sandbox server is now listening on 127.0.0.1:4000")
 	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
