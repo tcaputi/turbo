@@ -1,5 +1,9 @@
 package main
 
+import (
+	"log"
+)
+
 const (
 	EVENT_TYPE_VALUE         = "value"
 	EVENT_TYPE_CHILD_ADDED   = "child_added"
@@ -148,15 +152,21 @@ func (mb *MessageBus) unsubscribeAll(conn *connection) {
 }
 
 func (mb *MessageBus) publish(path string, eventType string, msg []byte) {
+	log.Println("Attempting to publish:", path, eventType, msg)
 	subSwitch := mb.managers[path]
 	if subSwitch != nil {
+		log.Println("Found a sub switch for path", path)
 		for sub := range subSwitch.subscribers(eventType) {
+			log.Println("Identified sub to publish to:", sub)
 			select {
 			case sub.send <- msg:
 			default:
+				log.Println("COULD NOT PUBLISH TO THAT SUB")
 				// TODO - kill this particular connection since its dead
 			}
 		}
+	} else {
+		log.Println("Could not find a sub switch for path", path)
 	}
 }
 

@@ -5,5 +5,18 @@
         <script type="text/javascript" src="turbo.js"></script>
     </head>
     <body>
+        <script type="text/javascript">
+        $(function () {
+            var turbo = new Turbo('/ws');
+            console.log('Started turbo...');
+            turbo.on('value', function(err, res) {
+                console.log('The value callback called back', err, res);
+            });
+            console.log('Now listening for value change');
+            turbo.set({ test: 123 }, function(err) {
+                console.log('The value was set');
+            });
+        });
+        </script>
     </body>
 </html>

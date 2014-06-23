@@ -14,9 +14,10 @@ var Turbo = (function () {
 
     var MSG_TYPE_ACK        = 'ack';
     var MSG_TYPE_AUTH_ACK   = 'authAck';
+    var MSG_TYPE_ON         = 'on';
 
     var _ws = undefined;
-    var _listeners = [];
+    var _listeners = {};
     var _ack = 0;
     var _ackCallbacks = {};
     var _token = undefined;
@@ -36,8 +37,8 @@ var Turbo = (function () {
         console.log('Connecting to ' + url);
         _ws = new WebSocket(url);
         _ws.onopen = function(evt) {
-            if (onConnect) onConnect(evt);
             _isOffline = false;
+            if (onConnect) onConnect(evt);
             console.log('Connection opened.', evt);
         };
         _ws.onclose = function(evt) {
@@ -67,6 +68,20 @@ var Turbo = (function () {
                             delete _ackCallbacks[msg.ack];
                         }
                         break;
+                    case MSG_TYPE_ON:
+                        if (_listeners[msg.path] && _listeners[msg.path][msg.eventType]) {
+                            var listenerMap = _listeners[msg.path][msg.eventType];
+                            for (var listenerRef in listenerMap) {
+                                var listener;
+                                if (listener = listenerMap[listenerRef]) {
+                                    var context = listener.context || listenerRef;
+                                    if (listener.callback) {
+                                        // TODO: this needs to be a snapshot
+                                        listener.callback.call(context, msg.value);
+                                    }
+                                }
+                            }
+                        }
                 }
             } catch (e) {
                 console.log('Could not process message; json parsing is failing')
@@ -110,7 +125,12 @@ var Turbo = (function () {
         this._url = url;
         this._path = path;
 
-        if (!_ws) _connect(url);
+        if (!_ws) _connect(url, function (evt) {
+            var msg;
+            while ((msg = _offlineQueue.shift())) {
+                _ws.send(msg);
+            }
+        });
     };
 
     Client.prototype.on = function(eventType, callback, cancelCallback, context) {
@@ -141,6 +161,8 @@ var Turbo = (function () {
             context: context,
             cancelCallback: cancelCallback
         };
+
+        return callback;
     };
 
     Client.prototype.off = function(eventType, callback, context) {
@@ -301,10 +323,10 @@ var Turbo = (function () {
     };
 
     Client.goOnline = function() {
-        _connect(function (evt) {
+        _connect(this._url, function (evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
-                _ws.send(JSON.parse(msg));
+                _ws.send(msg);
             }
         });
     };

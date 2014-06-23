@@ -19,31 +19,34 @@ const (
 	MSG_CMD_UNAUTH    = "unauth"
 
 	MSG_RESP_TYPE_ACK = "ack"
+	MSG_RESP_TYPE_ON  = MSG_CMD_ON
 )
 
 type Msg struct {
-	Cmd       string          `json:"cmd"`
-	Path      string          `json:"path"`
-	EventType string          `json:"eventType"`
-	Revision  int             `json:"revision"`
-	Value     json.RawMessage `json:"value"`
-	Ack       int             `json:"ack"`
+	Cmd      string          `json:"cmd"`
+	Path     string          `json:"path"`
+	Event    string          `json:"eventType"`
+	Revision int             `json:"revision"`
+	Value    json.RawMessage `json:"value"`
+	Ack      int             `json:"ack"`
 }
 
 type ValueChangeEvent struct {
+	Type  string `json:"type"`
 	Path  string `json:"path"`
+	Event string `json:"eventType"`
 	Value []byte `json:"value"`
 }
 
 type MsgResponse struct {
 	Type   string      `json:"type"`
-	Error  string      `json:"err,omitempty"`
+	Error  string      `json:"err"`
 	Result interface{} `json:"res"`
 	Ack    int         `json:"ack"`
 }
 
 func hasParent(path string) bool {
-	return path == "/"
+	return path != "/"
 }
 
 func parent(path string) string {
@@ -78,23 +81,33 @@ func routeRawMsg(rawMsg *rawMsg) {
 
 	switch msg.Cmd {
 	case MSG_CMD_ON:
-		log.Printf("A connection subscribed to path: '%s', event: '%s'\n", msg.Path, msg.EventType)
-		msgBus.subscribe(msg.Path, msg.EventType, conn)
-		sendAck(conn, msg.Ack, nil, nil)
+		log.Printf("A connection subscribed to path: '%s', event: '%s'\n", msg.Path, msg.Event)
+		msgBus.subscribe(msg.Path, msg.Event, conn)
 	case MSG_CMD_OFF:
-		log.Printf("A connection unsubscribed to path: '%s', event: '%s'\n", msg.Path, msg.EventType)
-		msgBus.unsubscribe(msg.Path, msg.EventType, conn)
-		sendAck(conn, msg.Ack, nil, nil)
+		log.Printf("A connection unsubscribed to path: '%s', event: '%s'\n", msg.Path, msg.Event)
+		msgBus.unsubscribe(msg.Path, msg.Event, conn)
 	case MSG_CMD_SET:
 		log.Printf("A connection has set a new value to path: '%s'\n", msg.Path)
 		// TODO run the db query
-		event, err := json.Marshal(ValueChangeEvent{msg.Path, msg.Value})
+		evt := ValueChangeEvent{Type: MSG_RESP_TYPE_ON, Event: EVENT_TYPE_VALUE, Path: msg.Path, Value: msg.Value}
+		evtJson, err := json.Marshal(evt)
 		if err == nil {
-			msgBus.publish(msg.Path, EVENT_TYPE_VALUE, event)
+			msgBus.publish(msg.Path, EVENT_TYPE_VALUE, evtJson)
 			if hasParent(msg.Path) {
-				msgBus.publish(parent(msg.Path), EVENT_TYPE_CHILD_CHANGED, event)
+				// Redo this for parent event
+				evt.Event = EVENT_TYPE_CHILD_CHANGED
+				evtJson, err := json.Marshal(evt)
+				if err == nil {
+					msgBus.publish(parent(msg.Path), EVENT_TYPE_CHILD_CHANGED, evtJson)
+					sendAck(conn, msg.Ack, nil, nil)
+				} else {
+					problem := "Couldn't marshal child value change event for set\n"
+					log.Fatalf(problem, msg.Cmd)
+					sendAck(conn, msg.Ack, &problem, nil)
+				}
+			} else {
+				sendAck(conn, msg.Ack, nil, nil)
 			}
-			sendAck(conn, msg.Ack, nil, nil)
 		} else {
 			problem := "Couldn't marshal value change event for set\n"
 			log.Fatalf(problem, msg.Cmd)
