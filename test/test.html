@@ -1,0 +1,23 @@
+<html>
+    <head>
+        <title>Turbo Sandbox</title>
+        <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+        <script type="text/javascript" src="static/turbo.js"></script>
+    </head>
+    <body>
+        <h2>YOU ARE LOOKING AT THE WORK OF A CODE DEITY</h2>
+        <script type="text/javascript">
+        $(function () {
+            var turbo = new Turbo('/ws');
+            console.log('Started turbo...');
+            turbo.on('value', function(err, res) {
+                console.log('The value callback called back', err, res);
+            });
+            console.log('Now listening for value change');
+            turbo.set({ test: 123 }, function(err) {
+                console.log('The value was set');
+            });
+        });
+        </script>
+    </body>
+</html>

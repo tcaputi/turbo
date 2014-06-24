@@ -1,15 +1,7 @@
-package main
+package turbo
 
 import (
 	"log"
-)
-
-const (
-	EVENT_TYPE_VALUE         = "value"
-	EVENT_TYPE_CHILD_ADDED   = "child_added"
-	EVENT_TYPE_CHILD_CHANGED = "child_changed"
-	EVENT_TYPE_CHILD_MOVED   = "child_moved"
-	EVENT_TYPE_CHILD_REMOVED = "child_removed"
 )
 
 type SubSet struct {
@@ -22,6 +14,14 @@ type SubSwitch struct {
 	childChanged *SubSet
 	childMoved   *SubSet
 	childRemoved *SubSet
+}
+
+type MessageBus struct {
+	subSwitches map[string]*SubSwitch
+}
+
+var msgBus = &MessageBus{
+	subSwitches: make(map[string]*SubSwitch),
 }
 
 func (s *SubSwitch) subscribe(eventType string, conn *connection) {
@@ -121,28 +121,24 @@ func (s *SubSwitch) subscribers(eventType string) map[*connection]bool {
 	}
 }
 
-type MessageBus struct {
-	managers map[string]*SubSwitch
-}
-
 func (mb *MessageBus) subscribe(path string, eventType string, conn *connection) {
-	if mb.managers == nil {
-		mb.managers = make(map[string]*SubSwitch)
+	if mb.subSwitches == nil {
+		mb.subSwitches = make(map[string]*SubSwitch)
 	}
-	if mb.managers[path] == nil {
-		mb.managers[path] = &SubSwitch{}
+	if mb.subSwitches[path] == nil {
+		mb.subSwitches[path] = &SubSwitch{}
 	}
-	mb.managers[path].subscribe(eventType, conn)
+	mb.subSwitches[path].subscribe(eventType, conn)
 }
 
 func (mb *MessageBus) unsubscribe(path string, eventType string, conn *connection) {
-	if mb.managers == nil {
+	if mb.subSwitches == nil {
 		return
 	}
-	if mb.managers[path] == nil {
+	if mb.subSwitches[path] == nil {
 		return
 	}
-	mb.managers[path].unsubscribe(eventType, conn)
+	mb.subSwitches[path].unsubscribe(eventType, conn)
 }
 
 func (mb *MessageBus) unsubscribeAll(conn *connection) {
@@ -152,17 +148,13 @@ func (mb *MessageBus) unsubscribeAll(conn *connection) {
 }
 
 func (mb *MessageBus) publish(path string, eventType string, msg []byte) {
-	log.Println("Attempting to publish:", path, eventType, msg)
-	subSwitch := mb.managers[path]
+	subSwitch := mb.subSwitches[path]
 	if subSwitch != nil {
-		log.Println("Found a sub switch for path", path)
 		for sub := range subSwitch.subscribers(eventType) {
-			log.Println("Identified sub to publish to:", sub)
 			select {
-			case sub.send <- msg:
+			case sub.outbox <- msg:
 			default:
-				log.Println("COULD NOT PUBLISH TO THAT SUB")
-				// TODO - kill this particular connection since its dead
+				defer sub.kill()
 			}
 		}
 	} else {
@@ -170,4 +162,14 @@ func (mb *MessageBus) publish(path string, eventType string, msg []byte) {
 	}
 }
 
-var msgBus = &MessageBus{managers: make(map[string]*SubSwitch)}
+func (mb *MessageBus) hasSubscribers(path string, eventType string) bool {
+	subSwitch := mb.subSwitches[path]
+	if subSwitch == nil {
+		return false
+	}
+	subs := subSwitch.subscribers(eventType)
+	if subs == nil {
+		return false
+	}
+	return len(subs) >= 0
+}

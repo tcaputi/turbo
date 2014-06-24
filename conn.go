@@ -1,22 +1,18 @@
-package main
+package turbo
 
 import (
 	"github.com/gorilla/websocket"
-	"net/http"
 )
 
 type connection struct {
+	// The id of this connection
+	id uint64
 	// The websocket connection.
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
-	send chan []byte
+	outbox chan []byte
 	// Event subscriptions
 	subs map[*SubSet]bool
-}
-
-type rawMsg struct {
-	payload []byte
-	conn    *connection
 }
 
 func (c *connection) reader() {
@@ -25,13 +21,13 @@ func (c *connection) reader() {
 		if err != nil {
 			break
 		}
-		h.broadcast <- &rawMsg{conn: c, payload: message}
+		msgHub.inbox <- &RawMsg{Conn: c, Payload: message}
 	}
 	c.ws.Close()
 }
 
 func (c *connection) writer() {
-	for message := range c.send {
+	for message := range c.outbox {
 		err := c.ws.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
 			break
@@ -40,16 +36,6 @@ func (c *connection) writer() {
 	c.ws.Close()
 }
 
-var upgrader = &websocket.Upgrader{ReadBufferSize: 1024, WriteBufferSize: 1024}
-
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	c := &connection{send: make(chan []byte, 256), ws: ws, subs: make(map[*SubSet]bool)}
-	h.register <- c
-	defer func() { h.unregister <- c }()
-	go c.writer()
-	c.reader()
+func (c *connection) kill() {
+	msgHub.unregistration <- c
 }
