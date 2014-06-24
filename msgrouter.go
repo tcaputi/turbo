@@ -32,10 +32,10 @@ type Msg struct {
 }
 
 type ValueChangeEvent struct {
-	Type  string `json:"type"`
-	Path  string `json:"path"`
-	Event string `json:"eventType"`
-	Value []byte `json:"value"`
+	Type  string           `json:"type"`
+	Path  string           `json:"path"`
+	Event string           `json:"eventType"`
+	Value *json.RawMessage `json:"value"`
 }
 
 type MsgResponse struct {
@@ -89,29 +89,40 @@ func routeRawMsg(rawMsg *rawMsg) {
 	case MSG_CMD_SET:
 		log.Printf("A connection has set a new value to path: '%s'\n", msg.Path)
 		// TODO run the db query
-		evt := ValueChangeEvent{Type: MSG_RESP_TYPE_ON, Event: EVENT_TYPE_VALUE, Path: msg.Path, Value: msg.Value}
-		evtJson, err := json.Marshal(evt)
-		if err == nil {
-			msgBus.publish(msg.Path, EVENT_TYPE_VALUE, evtJson)
-			if hasParent(msg.Path) {
-				// Redo this for parent event
-				evt.Event = EVENT_TYPE_CHILD_CHANGED
-				evtJson, err := json.Marshal(evt)
-				if err == nil {
-					msgBus.publish(parent(msg.Path), EVENT_TYPE_CHILD_CHANGED, evtJson)
-					sendAck(conn, msg.Ack, nil, nil)
-				} else {
-					problem := "Couldn't marshal child value change event for set\n"
-					log.Fatalf(problem, msg.Cmd)
-					sendAck(conn, msg.Ack, &problem, nil)
-				}
-			} else {
-				sendAck(conn, msg.Ack, nil, nil)
-			}
-		} else {
-			problem := "Couldn't marshal value change event for set\n"
-			log.Fatalf(problem, msg.Cmd)
+		msgValue, err := msg.Value.MarshalJSON()
+		if err != nil {
+			problem := "Couldn't marshal msg value json\n"
+			log.Fatalln(problem, err)
 			sendAck(conn, msg.Ack, &problem, nil)
+			return
+		}
+		log.Println("Hey look! MSGVALUE: ", string(msgValue[:]))
+
+		evt := ValueChangeEvent{Type: MSG_RESP_TYPE_ON, Event: EVENT_TYPE_VALUE, Path: msg.Path, Value: &(msg.Value)}
+		evtJson, err := json.Marshal(evt)
+		if err != nil {
+			problem := "Couldn't marshal event json\n"
+			log.Fatalln(problem, err)
+			sendAck(conn, msg.Ack, &problem, nil)
+			return
+		}
+
+		msgBus.publish(msg.Path, EVENT_TYPE_VALUE, evtJson)
+		if hasParent(msg.Path) {
+			// Redo this for parent event
+			evt.Event = EVENT_TYPE_CHILD_CHANGED
+			evtJson, err := json.Marshal(evt)
+			if err != nil {
+				problem := "Couldn't marshal msg value json\n"
+				log.Fatalln(problem, err)
+				sendAck(conn, msg.Ack, &problem, nil)
+				return
+			}
+
+			msgBus.publish(parent(msg.Path), EVENT_TYPE_CHILD_CHANGED, evtJson)
+			sendAck(conn, msg.Ack, nil, nil)
+		} else {
+			sendAck(conn, msg.Ack, nil, nil)
 		}
 	default:
 		log.Fatalf("Received msg with cmd '%s' which is unsupported\n", msg.Cmd)
