@@ -24,4 +24,5 @@ _testmain.go
 
 # Domain specific executables
 turbo
+test/test
 node_modules/
