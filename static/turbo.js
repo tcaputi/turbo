@@ -64,20 +64,15 @@ var Turbo = (function () {
             try {
                 var msg = JSON.parse(evt.data);
                 switch (msg.type) {
-                    case MSG_TYPE_ACK:
+                    case MSG_CMD_ACK:
                         if (_ackCallbacks[msg.ack]) {
                             _ackCallbacks[msg.ack](msg.err, msg.res);
                             delete _ackCallbacks[msg.ack];
                         }
                         break;
-                    case MSG_TYPE_AUTH_ACK:
-                        if (_ackCallbacks[msg.ack]) {
-                            _token = msg.token;
-                            _ackCallbacks[msg.ack](msg.err, msg.res);
-                            delete _ackCallbacks[msg.ack];
-                        }
-                        break;
-                    case MSG_TYPE_ON:
+                    default:
+			if (!msg.eventType || !msg.path) return; // Filter for 'on' events
+
                         if (_listeners[msg.path] && _listeners[msg.path][msg.eventType]) {
                             var listenerMap = _listeners[msg.path][msg.eventType];
                             for (var listenerRef in listenerMap) {
@@ -93,7 +88,7 @@ var Turbo = (function () {
                         }
                 }
             } catch (e) {
-                console.log('Could not process message; json parsing is failing')
+                console.log('Could not process message; json parsing is failing', e);
             }
         };
     };
@@ -108,7 +103,7 @@ var Turbo = (function () {
     var _attemptTransSet = function _attemptTransSet(path, value, revision, transform, done) {
         ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_TRANS_SET,
+            'cmd': MSG_CMD_TRANS_SET,
             'path': path,
             'revision': revision,
             'value': transform(value),
@@ -122,7 +117,7 @@ var Turbo = (function () {
     };
 
     var _eventType = function _eventType(eventTypeStr) {
-        switch (eventType) {
+        switch (eventTypeStr) {
         case EVENT_TYPE_VALUE_STR:
             return EVENT_TYPE_VALUE;
         case EVENT_TYPE_CHILD_ADDED_STR:
@@ -172,7 +167,7 @@ var Turbo = (function () {
         var self = this;
         var path = self._path;
         _send(JSON.stringify({
-            'cmd': CMD_ON,
+            'cmd': MSG_CMD_ON,
             'eventType': eventType,
             'path': path
         }));
@@ -204,7 +199,7 @@ var Turbo = (function () {
         delete _listeners[path][eventType][self];
 
         _send(JSON.stringify({
-            'cmd': CMD_OFF,
+            'cmd': MSG_CMD_OFF,
             'eventType': eventType,
             'path': path
         }));
@@ -233,7 +228,7 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_SET,
+            'cmd': MSG_CMD_SET,
             'path': self._path,
             'value': value,
             'ack': ack
@@ -245,7 +240,7 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_UPDATE,
+            'cmd': MSG_CMD_UPDATE,
             'path': self._path,
             'value': objectToMerge,
             'ack': ack
@@ -265,7 +260,7 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_REMOVE,
+            'cmd': MSG_CMD_REMOVE,
             'path': self._path,
             'ack': ack
         }));
@@ -276,7 +271,7 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_TRANS_GET,
+            'cmd': MSG_CMD_TRANS_GET,
             'path': self._path,
             'ack': ack
         }));
@@ -294,7 +289,7 @@ var Turbo = (function () {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_PUSH,
+            'cmd': MSG_CMD_PUSH,
             'path': self._path,
             'value': value,
             'ack': ack
@@ -317,7 +312,7 @@ var Turbo = (function () {
     Client.prototype.auth = function(cred, onComplete, onCancel) {
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_AUTH,
+            'cmd': MSG_CMD_AUTH,
             'cred': cred,
             'ack': ack
         }));
@@ -329,7 +324,7 @@ var Turbo = (function () {
 
         var ack = _ack++;
         _send(JSON.stringify({
-            'cmd': CMD_UNAUTH,
+            'cmd': MSG_CMD_UNAUTH,
             'token': _token,
             'ack': ack
         }));
