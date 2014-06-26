@@ -1,20 +1,29 @@
 var Turbo = (function () {
     'use strict';
 
-    var CMD_ON          = 'on';
-    var CMD_OFF         = 'off';
-    var CMD_SET         = 'set';
-    var CMD_UPDATE      = 'update';
-    var CMD_REMOVE      = 'remove';
-    var CMD_TRANS_SET   = 'transSet';
-    var CMD_PUSH        = 'push';
-    var CMD_TRANS_GET   = 'transGet';
-    var CMD_AUTH        = 'auth';
-    var CMD_UNAUTH      = 'unauth';
+    var MSG_CMD_ON        = 1,
+        MSG_CMD_OFF       = 2,
+        MSG_CMD_SET       = 3,
+        MSG_CMD_UPDATE    = 4,
+        MSG_CMD_REMOVE    = 5,
+        MSG_CMD_TRANS_SET = 6,
+        MSG_CMD_PUSH      = 7,
+        MSG_CMD_TRANS_GET = 8,
+        MSG_CMD_AUTH      = 9,
+        MSG_CMD_UNAUTH    = 10,
+        MSG_CMD_ACK       = 11;
 
-    var MSG_TYPE_ACK        = 'ack';
-    var MSG_TYPE_AUTH_ACK   = 'authAck';
-    var MSG_TYPE_ON         = 'on';
+    var EVENT_TYPE_VALUE         = 1,
+        EVENT_TYPE_CHILD_ADDED   = 2,
+        EVENT_TYPE_CHILD_CHANGED = 3,
+        EVENT_TYPE_CHILD_MOVED   = 4,
+        EVENT_TYPE_CHILD_REMOVED = 5;
+
+    var EVENT_TYPE_VALUE_STR         = 'value',
+        EVENT_TYPE_CHILD_ADDED_STR   = 'child_added',
+        EVENT_TYPE_CHILD_CHANGED_STR = 'child_changed',
+        EVENT_TYPE_CHILD_MOVED_STR   = 'child_moved',
+        EVENT_TYPE_CHILD_REMOVED_STR = 'child_removed';
 
     var _ws = undefined;
     var _listeners = {};
@@ -112,6 +121,22 @@ var Turbo = (function () {
         };
     };
 
+    var _eventType = function _eventType(eventTypeStr) {
+        switch (eventType) {
+        case EVENT_TYPE_VALUE_STR:
+            return EVENT_TYPE_VALUE;
+        case EVENT_TYPE_CHILD_ADDED_STR:
+            return EVENT_TYPE_CHILD_ADDED;
+        case EVENT_TYPE_CHILD_CHANGED_STR:
+            return EVENT_TYPE_CHILD_CHANGED;
+        case EVENT_TYPE_CHILD_MOVED_STR:
+            return EVENT_TYPE_CHILD_MOVED;
+        case EVENT_TYPE_CHILD_REMOVED:
+            return EVENT_TYPE_CHILD_REMOVED;
+        }
+        return null;
+    };
+
     var Client = function(url, path) {
         if (url === null || url === undefined || !(typeof url === 'string'))
             url = window.location.host;
@@ -133,13 +158,11 @@ var Turbo = (function () {
         });
     };
 
-    Client.prototype.on = function(eventType, callback, cancelCallback, context) {
-        if (eventType !== 'value' &&
-            eventType !== 'child_added' &&
-            eventType !== 'child_changed' &&
-            eventType !== 'child_removed' &&
-            eventType !== 'child_moved')
-            throw 'Unsupported event type \'' + eventType + '\'';
+    Client.prototype.on = function(eventTypeStr, callback, cancelCallback, context) {
+        var eventType = _eventType(eventTypeStr);
+        if (!eventType)
+            throw 'Unsupported event type \'' + eventTypeStr + '\'';
+
         if (!callback || typeof callback !== 'function') throw 'Callback was not a function';
         if (cancelCallback && !context && typeof cancelCallback === 'object') {
             context = cancelCallback;
@@ -166,12 +189,10 @@ var Turbo = (function () {
     };
 
     Client.prototype.off = function(eventType, callback, context) {
-        if (eventType !== 'value' &&
-            eventType !== 'child_added' &&
-            eventType !== 'child_changed' &&
-            eventType !== 'child_removed' &&
-            eventType !== 'child_moved')
-            throw 'Unsupported event type \'' + eventType + '\'';
+        var eventType = _eventType(eventTypeStr);
+        if (!eventType)
+            throw 'Unsupported event type \'' + eventTypeStr + '\'';
+
         if (!callback || typeof callback !== 'function') throw 'Callback was not a function';
 
         var self = this;

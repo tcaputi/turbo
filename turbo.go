@@ -34,7 +34,7 @@ func (t *Turbo) Handler(res http.ResponseWriter, req *http.Request) {
 		id:     connectionId(),
 		outbox: make(chan []byte, 256),
 		ws:     ws,
-		subs:   make(map[*SubSet]bool),
+		subs:   make(map[*SubscriberSet]bool),
 	}
 	msgHub.registration <- conn
 	defer conn.kill() // Kill the connection on exit

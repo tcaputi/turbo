@@ -5,43 +5,42 @@ import (
 )
 
 const (
-	MSG_CMD_ON        = "on"
-	MSG_CMD_OFF       = "off"
-	MSG_CMD_SET       = "set"
-	MSG_CMD_UPDATE    = "update"
-	MSG_CMD_REMOVE    = "remove"
-	MSG_CMD_TRANS_SET = "transSet"
-	MSG_CMD_PUSH      = "push"
-	MSG_CMD_TRANS_GET = "transGet"
-	MSG_CMD_AUTH      = "auth"
-	MSG_CMD_UNAUTH    = "unauth"
-	MSG_CMD_ACK       = "ack"
+	MSG_CMD_ON        = 1
+	MSG_CMD_OFF       = 2
+	MSG_CMD_SET       = 3
+	MSG_CMD_UPDATE    = 4
+	MSG_CMD_REMOVE    = 5
+	MSG_CMD_TRANS_SET = 6
+	MSG_CMD_PUSH      = 7
+	MSG_CMD_TRANS_GET = 8
+	MSG_CMD_AUTH      = 9
+	MSG_CMD_UNAUTH    = 10
+	MSG_CMD_ACK       = 11
 
-	EVENT_TYPE_VALUE         = "value"
-	EVENT_TYPE_CHILD_ADDED   = "child_added"
-	EVENT_TYPE_CHILD_CHANGED = "child_changed"
-	EVENT_TYPE_CHILD_MOVED   = "child_moved"
-	EVENT_TYPE_CHILD_REMOVED = "child_removed"
+	EVENT_TYPE_VALUE         = 1
+	EVENT_TYPE_CHILD_ADDED   = 2
+	EVENT_TYPE_CHILD_CHANGED = 3
+	EVENT_TYPE_CHILD_MOVED   = 4
+	EVENT_TYPE_CHILD_REMOVED = 5
 )
 
 type Msg struct {
-	Cmd      string          `json:"cmd"`
+	Cmd      byte            `json:"cmd"`
 	Path     string          `json:"path"`
-	Event    string          `json:"eventType"`
+	Event    byte            `json:"eventType"`
 	Revision int             `json:"revision"`
 	Value    json.RawMessage `json:"value"`
 	Ack      int             `json:"ack"`
 }
 
-type ValueChangeEvent struct {
-	Type  string           `json:"type"`
+type ValueEvent struct {
 	Path  string           `json:"path"`
-	Event string           `json:"eventType"`
+	Event byte             `json:"eventType"`
 	Value *json.RawMessage `json:"value"`
 }
 
-type MsgResponse struct {
-	Type   string      `json:"type"`
+type Ack struct {
+	Type   byte        `json:"type"`
 	Error  string      `json:"err"`
 	Result interface{} `json:"res"`
 	Ack    int         `json:"ack"`

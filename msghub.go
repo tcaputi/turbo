@@ -8,9 +8,7 @@ import (
 
 type MsgHub struct {
 	// Registered connections.
-	connections map[*connection]bool // *NOTE: in go, its a popular pattern to emulate a set wih map[*]bool
-	// Inbound messages from the connections.
-	inbox chan *RawMsg
+	connections map[uint64]*connection
 	// Register requests from the connections.
 	registration chan *connection
 	// Unregister requests from connections.
@@ -19,10 +17,9 @@ type MsgHub struct {
 
 var (
 	msgHub = &MsgHub{
-		inbox:          make(chan *RawMsg),
 		registration:   make(chan *connection),
 		unregistration: make(chan *connection),
-		connections:    make(map[*connection]bool),
+		connections:    make(map[uint64]*connection),
 	}
 )
 
@@ -30,19 +27,15 @@ func (hub *MsgHub) run() {
 	for {
 		select {
 		// There is a connection 'c' in the registration queue
-		case c := <-hub.registration:
-			hub.connections[c] = true
+		case conn := <-hub.registration:
+			hub.connections[conn.id] = conn
 		// There is a connection 'c' in the unregistration queue
-		case c := <-hub.unregistration:
-			delete(hub.connections, c)
-			msgBus.unsubscribeAll(c)
-			close(c.outbox)
-			c.ws.Close()
-			log.Printf("Connection #%d was killed.\n", c.id)
-		// There is a message 'm' in the broadcast queue
-		case m := <-hub.inbox:
-			// Send the incoming message to the message router
-			hub.route(m)
+		case conn := <-hub.unregistration:
+			delete(hub.connections, conn.id)
+			msgBus.unsubscribeAll(conn)
+			close(conn.outbox)
+			conn.ws.Close()
+			log.Printf("Connection #%d was killed.\n", conn.id)
 		}
 	}
 }
@@ -60,33 +53,42 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 
 	switch msg.Cmd {
 	case MSG_CMD_ON:
-		log.Printf("Connection #%d subscribed to path: '%s', event: '%s'\n", conn.id, msg.Path, msg.Event)
+		log.Printf("Connection #%d subscribed to: '%s', event: '%d'\n", conn.id, msg.Path, msg.Event)
 		msgBus.subscribe(msg.Path, msg.Event, conn)
 	case MSG_CMD_OFF:
-		log.Printf("Connection #%d unsubscribed from path: '%s', event: '%s'\n", conn.id, msg.Path, msg.Event)
+		log.Printf("Connection #%d unsubscribed from: '%s', event: '%d'\n", conn.id, msg.Path, msg.Event)
 		msgBus.unsubscribe(msg.Path, msg.Event, conn)
 	case MSG_CMD_SET:
 		log.Printf("Connection #%d has set a new value to path: '%s'\n", conn.id, msg.Path)
-		hub.handleSet(&msg, conn)
+		go hub.handleSet(&msg, conn)
 	default:
-		log.Fatalf("Received msg with cmd '%s' which is unsupported\n", msg.Cmd)
+		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
 }
 
 func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
+	var hasValueSubs bool
+	var hasChildChangedSubs bool
+	var parentPath string
+
+	if hasParent(msg.Path) {
+		parentPath = parentOf(msg.Path)
+	}
 	//
 	// TODO run the db query representing the set
 	// TODO db needs to tell us if it was a create or an update
 	sendAck(conn, msg.Ack, nil, nil) // <- this will send errors from the db insert in future
 	// Check if anyone is event subscribed to this
-	hasValueSubs := msgBus.hasSubscribers(msg.Path, EVENT_TYPE_VALUE)
-	hasChildChangedSubs := msgBus.hasSubscribers(msg.Path, EVENT_TYPE_CHILD_CHANGED)
+	hasValueSubs = msgBus.hasSubscribers(msg.Path, EVENT_TYPE_VALUE)
+	if parentPath != "" {
+		hasChildChangedSubs = msgBus.hasSubscribers(msg.Path, EVENT_TYPE_CHILD_CHANGED)
+	}
+	// Do not continue if there are no subscribers
 	if !hasValueSubs && !hasChildChangedSubs {
 		return
 	}
 	// This is what we are sending subscribers to a value related event
-	evt := ValueChangeEvent{
-		Type:  MSG_CMD_ON,
+	evt := ValueEvent{
 		Path:  msg.Path,
 		Value: &(msg.Value),
 	}
@@ -100,7 +102,6 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 			log.Fatalln(problem, err)
 			return
 		}
-		// FIRE AWAY
 		msgBus.publish(msg.Path, EVENT_TYPE_VALUE, evtJson)
 	}
 	// Send the event to child changed listeners
@@ -114,7 +115,6 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 			log.Fatalln(problem, err)
 			return
 		}
-		// FIRE AWAY
 		msgBus.publish(msg.Path, EVENT_TYPE_CHILD_CHANGED, evtJson)
 	}
 }
@@ -129,7 +129,11 @@ func parentOf(path string) string {
 }
 
 func sendAck(conn *connection, ack int, error *string, result interface{}) {
-	response := MsgResponse{Type: MSG_CMD_ACK, Ack: ack, Result: result}
+	response := Ack{
+		Type:   MSG_CMD_ACK,
+		Ack:    ack,
+		Result: result,
+	}
 	if error != nil {
 		response.Error = *error
 	}
