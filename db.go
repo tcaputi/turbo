@@ -1,67 +1,51 @@
 package turbo
 
 import (
-	"errors"
+	"fmt"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 )
 
 type Entry struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Path     string
+	ID    bson.ObjectId `bson:"_id,omitempty"`
+	Path  string
+	Value interface{}
 	Revision int
-	Value    []byte
 }
 
-type DB struct {
-	mgoClient *mgo.Session
-	c         *mgo.Collection
+type Database struct {
+	client *mgo.Session
+	col	*mgo.Collection
 }
 
-func (db *DB) init(url string, database string, collection string) error {
-	client, err := mgo.Dial(url)
-	db.mgoClient = client
-	db.c = db.mgoClient.DB(database).C(collection)
-	return err
-}
+var(
+	database = &Database{}
+)
 
-func (db *DB) get(path string) (*[]byte, error) {
-	result := Entry{}
-	err := db.c.Find(bson.M{"Path": path}).One(&result)
-	return &(result.Value), err
-}
-
-func (db *DB) getTransaction(path string) (*[]byte, int, error) {
-	result := Entry{}
-	err := db.c.Find(bson.M{"Path": path}).One(&result)
-	return &(result.Value), result.Revision, err
-}
-
-func (db *DB) set(path string, value *[]byte) error {
-	result := Entry{}
-	change := mgo.Change{
-		Update: bson.M{"$inc": bson.M{"Revision": 1}, "value": value},
-	}
-	_, err := db.c.Find(bson.M{"Path": path}).Apply(change, &result)
-	return err
-}
-
-func (db *DB) setTransaction(path string, revision int, value *[]byte) error {
-	value, rev, err := db.getTransaction(path)
+func (db *Database) init(mgoPath string, dbName string, collectionName string){
+	session, err := mgo.Dial(mgoPath)
 	if err != nil {
-		return err
+		panic(err)
+		return
 	}
-	if rev == revision {
-		return db.set(path, value)
-	} else {
-		return errors.New("conflict")
-	}
+	db.client = session
+	db.col = session.DB(dbName).C(collectionName)
 }
 
-func (db *DB) delete(path string) error {
-	return db.c.Remove(bson.M{"Path": path})
+func (db *Database) set(path string, value interface{}) error{
+	query := bson.M{"path": path}
+	change := mgo.Change{
+		Update: bson.M{"$inc": bson.M{"revision": 1}, "$set": bson.M{"value": value}},
+		Upsert: true,
+	}
+	doc := Entry{}
+	info, err := db.col.Find(query).Apply(change, &doc)
+	fmt.Println(info)
+	return err
 }
 
-func (db *DB) close() {
-	db.mgoClient.Close()
+func (db *Database) get(path string) (error, interface{}){
+	result := Entry{}
+	err := db.col.Find(bson.M{"path": path}).Select(bson.M{"value": 1}).One(&result)
+	return err, result.Value
 }
