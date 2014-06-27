@@ -59,29 +59,90 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 		log.Printf("Connection #%d unsubscribed from: '%s', event: '%d'\n", conn.id, msg.Path, msg.Event)
 		msgBus.unsubscribe(msg.Path, msg.Event, conn)
 	case MSG_CMD_SET:
-		log.Printf("Connection #%d has set a new value to path: '%s'\n", conn.id, msg.Path)
+		log.Printf("Connection #%d has set a value to path: '%s'\n", conn.id, msg.Path)
 		go hub.handleSet(&msg, conn)
+	case MSG_CMD_UPDATE:
+		log.Printf("Connection #%d has updated path: '%s'\n", conn.id, msg.Path)
+		go hub.handleUpdate(&msg, conn)
+	case MSG_CMD_REMOVE:
+		log.Printf("Connection #%d has removed path: '%s'\n", conn.id, msg.Path)
+		go hub.handleRemove(msg, conn)
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
 }
 
 func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
+	//
+	// TODO run the db query representing the set
+	// TODO db needs to tell us if it was a create or an update
+	//
+	sendAck(conn, msg.Ack, nil, nil) // <- this will send errors from the db insert in future
+	hub.publishValueEvent(msg.Path, &msg.Value, conn)
+}
+
+// TODO add "remove with null" support
+func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
+	if msg.Value == nil {
+		return
+	}
+	propertyMap := make(map[string]json.RawMessage)
+	json.Unmarshal(msg.Value, &propertyMap)
+	responses := make(chan *error)
+	for property, value := range propertyMap {
+		go (func() {
+			path := joinPaths(msg.Path, property)
+			//
+			// TODO run the db query representing the set
+			// TODO db needs to tell us if it was a create or an update
+			//
+			responses <- nil // Error message here if there was a problem
+			// if err == nil { // Make this a thing when we have db shit
+			hub.publishValueEvent(path, &value, conn)
+			//}
+		})()
+	}
+	// Collect the callbacks
+	i := 1
+	problems := ""
+	for {
+		select {
+		case err := <-responses:
+			if err != nil {
+				problems += (*err).Error() + "\n"
+			}
+
+			if i == len(propertyMap) {
+				// We're done - send the response
+				if problems == "" {
+					sendAck(conn, msg.Ack, nil, nil)
+				} else {
+					sendAck(conn, msg.Ack, &problems, nil)
+				}
+				close(responses)
+				return
+			} else {
+				i = i + 1
+			}
+		}
+	}
+}
+
+func (hub *MsgHub) handleRemove(msg *Msg, conn *connection) {
+}
+
+func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *connection) {
 	var hasValueSubs bool
 	var hasChildChangedSubs bool
 	var parentPath string
 
-	if hasParent(msg.Path) {
-		parentPath = parentOf(msg.Path)
+	if hasParent(path) {
+		parentPath = parentOf(path)
 	}
-	//
-	// TODO run the db query representing the set
-	// TODO db needs to tell us if it was a create or an update
-	sendAck(conn, msg.Ack, nil, nil) // <- this will send errors from the db insert in future
 	// Check if anyone is event subscribed to this
-	hasValueSubs = msgBus.hasSubscribers(msg.Path, EVENT_TYPE_VALUE)
+	hasValueSubs = msgBus.hasSubscribers(path, EVENT_TYPE_VALUE)
 	if parentPath != "" {
-		hasChildChangedSubs = msgBus.hasSubscribers(msg.Path, EVENT_TYPE_CHILD_CHANGED)
+		hasChildChangedSubs = msgBus.hasSubscribers(path, EVENT_TYPE_CHILD_CHANGED)
 	}
 	// Do not continue if there are no subscribers
 	if !hasValueSubs && !hasChildChangedSubs {
@@ -89,8 +150,8 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 	}
 	// This is what we are sending subscribers to a value related event
 	evt := ValueEvent{
-		Path:  msg.Path,
-		Value: &(msg.Value),
+		Path:  path,
+		Value: value,
 	}
 	// Send the event to value listeners
 	if hasValueSubs {
@@ -102,20 +163,20 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 			log.Fatalln(problem, err)
 			return
 		}
-		msgBus.publish(msg.Path, EVENT_TYPE_VALUE, evtJson)
+		msgBus.publish(path, EVENT_TYPE_VALUE, evtJson)
 	}
 	// Send the event to child changed listeners
-	if hasChildChangedSubs && hasParent(msg.Path) {
+	if hasChildChangedSubs && hasParent(path) {
 		// Set the event type, parent path; jsonify
 		evt.Event = EVENT_TYPE_CHILD_CHANGED
-		evt.Path = parentOf(msg.Path)
+		evt.Path = parentOf(path)
 		evtJson, err := json.Marshal(evt)
 		if err != nil {
 			problem := "Couldn't marshal msg value json\n"
 			log.Fatalln(problem, err)
 			return
 		}
-		msgBus.publish(msg.Path, EVENT_TYPE_CHILD_CHANGED, evtJson)
+		msgBus.publish(path, EVENT_TYPE_CHILD_CHANGED, evtJson)
 	}
 }
 
@@ -126,6 +187,26 @@ func hasParent(path string) bool {
 func parentOf(path string) string {
 	lastIndex := strings.LastIndex(path, "/")
 	return path[0:lastIndex]
+}
+
+func joinPaths(base string, extension string) string {
+	if strings.HasSuffix(base, "/") {
+		if strings.HasPrefix(extension, "/") {
+			if len(extension) > 1 {
+				return base
+			} else {
+				return base + extension[1:]
+			}
+		} else {
+			return base + "/" + extension
+		}
+	} else {
+		if strings.HasPrefix(extension, "/") {
+			return base + extension
+		} else {
+			return base + "/" + extension
+		}
+	}
 }
 
 func sendAck(conn *connection, ack int, error *string, result interface{}) {

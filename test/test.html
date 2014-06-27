@@ -17,6 +17,9 @@
             turbo.set({ test: 123 }, function(err) {
                 console.log('The value was set');
             });
+            turbo.update({a: {val:1}, b: {val:2}, c: {val:3}, d: {val:4}}, function(err) {
+                console.log('The value was updated');
+            })
         });
         </script>
     </body>

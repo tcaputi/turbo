@@ -206,6 +206,8 @@ var Turbo = (function () {
     };
 
     Client.prototype.child = function(childPath) {
+        if (!childPath) return this;
+        if (childPath.length >= 1 && childPath[0] === '/') childPath = childPath.substring(1)
         var newPath = this._path === '/' ? ('/' + childPath) : (this._path + '/' + childPath);
         return new Client(this._url, newPath);
     };
@@ -217,6 +219,7 @@ var Turbo = (function () {
     };
 
     Client.prototype.root = function() {
+        if (this._path === '/') return this;
         return new Client(this._url, '/');
     };
 
@@ -236,13 +239,13 @@ var Turbo = (function () {
         _ackCallbacks[ack] = onComplete;
     };
 
-    Client.prototype.update = function(objectToMerge, onComplete) {
+    Client.prototype.update = function(value, onComplete) {
         var self = this;
         var ack = _ack++;
         _send(JSON.stringify({
             'cmd': MSG_CMD_UPDATE,
             'path': self._path,
-            'value': objectToMerge,
+            'value': value,
             'ack': ack
         }));
         _ackCallbacks[ack] = onComplete;
