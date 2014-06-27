@@ -66,7 +66,7 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 		go hub.handleUpdate(&msg, conn)
 	case MSG_CMD_REMOVE:
 		log.Printf("Connection #%d has removed path: '%s'\n", conn.id, msg.Path)
-		go hub.handleRemove(msg, conn)
+		go hub.handleRemove(&msg, conn)
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}

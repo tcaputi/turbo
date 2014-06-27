@@ -17,7 +17,7 @@ func main() {
 	// Log config
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	// Make a turbo instance
-	err, turboServer := turbo.New()
+	err, turboServer := turbo.New("mongodb://bitbeam.info:27017", "test", "entries")
 	if err != nil {
 		return
 	}
