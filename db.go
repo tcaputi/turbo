@@ -1,7 +1,6 @@
 package turbo
 
 import (
-	"fmt"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 )
@@ -32,7 +31,7 @@ func (db *Database) init(mgoPath string, dbName string, collectionName string){
 	db.col = session.DB(dbName).C(collectionName)
 }
 
-func (db *Database) set(path string, value interface{}) error{
+func (db *Database) set(path string, value interface{}) (error, bool){
 	query := bson.M{"path": path}
 	change := mgo.Change{
 		Update: bson.M{"$inc": bson.M{"revision": 1}, "$set": bson.M{"value": value}},
@@ -40,8 +39,7 @@ func (db *Database) set(path string, value interface{}) error{
 	}
 	doc := Entry{}
 	info, err := db.col.Find(query).Apply(change, &doc)
-	fmt.Println(info)
-	return err
+	return err, (info.Updated == 0)
 }
 
 func (db *Database) get(path string) (error, interface{}){
