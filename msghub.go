@@ -66,7 +66,7 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 		go hub.handleUpdate(&msg, conn)
 	case MSG_CMD_REMOVE:
 		log.Printf("Connection #%d has removed path: '%s'\n", conn.id, msg.Path)
-		go hub.handleRemove(msg, conn)
+		go hub.handleRemove(&msg, conn)
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
@@ -77,8 +77,20 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 	// TODO run the db query representing the set
 	// TODO db needs to tell us if it was a create or an update
 	//
-	sendAck(conn, msg.Ack, nil, nil) // <- this will send errors from the db insert in future
-	hub.publishValueEvent(msg.Path, &msg.Value, conn)
+	jsonValue, jsonErr := msg.Value.MarshalJSON()
+	if jsonErr != nil{
+		errStr := jsonErr.Error()
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}else{
+		err, _ := database.set(msg.Path, string(jsonValue[:]))
+		if err != nil {
+			errStr := err.Error()
+			sendAck(conn, msg.Ack, &errStr, nil)
+		}else{
+			sendAck(conn, msg.Ack, nil, nil)
+			hub.publishValueEvent(msg.Path, &msg.Value, conn)
+		}
+	}
 }
 
 // TODO add "remove with null" support

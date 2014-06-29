@@ -43,7 +43,8 @@ func (t *Turbo) Handler(res http.ResponseWriter, req *http.Request) {
 }
 
 // TODO this should take config
-func New() (error, *Turbo) {
+func New(connectionString, dbName, colName string) (error, *Turbo) {
+	database.init(connectionString, dbName, colName)
 	go msgHub.run()
 	return nil, &Turbo{}
 }
