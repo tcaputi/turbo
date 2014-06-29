@@ -54,7 +54,7 @@ func (tree *PathTree) parent(path string) *PathTreeNode {
 	return nil
 }
 
-func (tree *PathTree) children(path string) *map[*PathTreeNode]bool {
+func (tree *PathTree) children(path string) *map[string]bool {
 	node := tree.refs[path]
 
 	if node == nil {

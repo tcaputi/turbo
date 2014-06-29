@@ -67,6 +67,9 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	case MSG_CMD_REMOVE:
 		log.Printf("Connection #%d has removed path: '%s'\n", conn.id, msg.Path)
 		go hub.handleRemove(&msg, conn)
+	case MSG_CMD_TRANS_SET:
+		log.Printf("Connection #%d has done trans-set on path: '%s'\n", conn.id, msg.Path)
+		go hub.handleTransSet(&msg, conn)
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
@@ -82,7 +85,7 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 		errStr := jsonErr.Error()
 		sendAck(conn, msg.Ack, &errStr, nil)
 	}else{
-		err, _ := database.set(msg.Path, string(jsonValue[:]))
+		err := database.set(msg.Path, string(jsonValue[:]))
 		if err != nil {
 			errStr := err.Error()
 			sendAck(conn, msg.Ack, &errStr, nil)
@@ -141,6 +144,13 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 }
 
 func (hub *MsgHub) handleRemove(msg *Msg, conn *connection) {
+}
+
+func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
+	// db get
+	err, value := database.get(msg.Path)
+	// hash the db get
+	// compare le hashes
 }
 
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *connection) {
