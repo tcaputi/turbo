@@ -39,7 +39,7 @@ func (tree *PathTree) parent(path string) *PathTreeNode {
 		return nil
 	}
 
-	for i := range depth {
+	for i := 0; i < depth; i++ {
 		index := strings.LastIndex(path, "/")
 		if index > 0 {
 			path = path[:index]
@@ -54,7 +54,7 @@ func (tree *PathTree) parent(path string) *PathTreeNode {
 	return nil
 }
 
-func (tree *PathTree) children(path string) *map[string]bool {
+func (tree *PathTree) children(path string) *map[*PathTreeNode]bool {
 	node := tree.refs[path]
 
 	if node == nil {
@@ -70,18 +70,19 @@ func (tree *PathTree) allChildren(path string) *map[string]bool {
 	node := tree.refs[path]
 	list := make(map[string]bool)
 	if node != nil {
-		tree.allChildrenHelper(list, node)
+		tree.allChildrenHelper(&list, node)
 		return &list
 	} else {
 		return nil
 	}
 }
 
-func (tree *PathTree) kill(path string) {
+func (tree *PathTree) kill(path string) *map[string]bool {
 	node := tree.refs[path]
 	list := make(map[string]bool)
 	if node != nil {
-		tree.killHelper(list, node)
+		// TODO
+		// tree.killHelper(list, node)
 		return &list
 	} else {
 		return nil
@@ -90,7 +91,7 @@ func (tree *PathTree) kill(path string) {
 
 func (tree *PathTree) allChildrenHelper(list *map[string]bool, node *PathTreeNode) {
 	for child, _ := range node.children {
-		allChildrenHelper(list, child)
-		list[child.path] = true
+		tree.allChildrenHelper(list, child)
+		(*list)[child.path] = true
 	}
 }

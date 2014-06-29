@@ -81,15 +81,15 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 	// TODO db needs to tell us if it was a create or an update
 	//
 	jsonValue, jsonErr := msg.Value.MarshalJSON()
-	if jsonErr != nil{
+	if jsonErr != nil {
 		errStr := jsonErr.Error()
 		sendAck(conn, msg.Ack, &errStr, nil)
-	}else{
+	} else {
 		err := database.set(msg.Path, string(jsonValue[:]))
 		if err != nil {
 			errStr := err.Error()
 			sendAck(conn, msg.Ack, &errStr, nil)
-		}else{
+		} else {
 			sendAck(conn, msg.Ack, nil, nil)
 			hub.publishValueEvent(msg.Path, &msg.Value, conn)
 		}
@@ -148,7 +148,7 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *connection) {
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
 	// db get
-	err, value := database.get(msg.Path)
+	// err, value := database.get(msg.Path)
 	// hash the db get
 	// compare le hashes
 }
