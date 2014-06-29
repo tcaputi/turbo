@@ -13,9 +13,19 @@ func TestSet(t *testing.T){
 	}
 }
 
-func TestGet(t *testing.T){
+func TestGetAll(t *testing.T){
 	database.init("mongodb://bitbeam.info:27017", "test", "entries")
 	err, result := database.get("bransonapp")
+	if err != nil {
+		t.Error(err)
+	}else{
+		t.Log(result);
+	}
+}
+
+func TestGet(t *testing.T){
+	database.init("mongodb://bitbeam.info:27017", "test", "entries")
+	err, result := database.get("bransonapp.testPath")
 	if err != nil {
 		t.Error(err)
 	}else{
