@@ -34,7 +34,7 @@ func (db *Database) init(mgoPath string, dbName string, collectionName string){
 }
 
 func (db *Database) get(path string) (error, interface{}){
-	var result bson.M{}
+	var result bson.M
 	err := db.col.Find(nil).Select(bson.M{path: 1}).One(&result)
 	if err != nil {
 		return err, nil
