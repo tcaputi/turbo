@@ -28,7 +28,9 @@ func TestGet(t *testing.T){
 	err, result := database.get("bransonapp.testPath")
 	if err != nil {
 		t.Error(err)
+	}else if result.(string) != "hi" {
+		t.Error("should have returned 'hi', actually returned " + result.(string))
 	}else{
-		t.Log(result);
+		t.Log(result)
 	}
 }
