@@ -82,14 +82,14 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 	jsonValue, jsonErr := msg.Value.MarshalJSON()
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	} else {
 		err := database.set(msg.Path, string(jsonValue[:]))
 		if err != nil {
 			errStr := err.Error()
-			sendAck(conn, msg.Ack, &errStr, nil)
+			hub.sendAck(conn, msg.Ack, &errStr, nil)
 		} else {
-			sendAck(conn, msg.Ack, nil, nil)
+			hub.sendAck(conn, msg.Ack, nil, nil)
 			hub.publishValueEvent(msg.Path, &msg.Value, conn)
 		}
 	}
@@ -104,17 +104,17 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 	json.Unmarshal(msg.Value, &propertyMap)
 	responses := make(chan *error)
 	for property, value := range propertyMap {
-		go (func() {
-			path := joinPaths(msg.Path, property)
+		go (func(path string, val json.RawMessage) {
+			newPath := hub.joinPaths(msg.Path, path)
 			//
 			// TODO run the db query representing the set
 			// TODO db needs to tell us if it was a create or an update
 			//
 			responses <- nil // Error message here if there was a problem
 			// if err == nil { // Make this a thing when we have db shit
-			hub.publishValueEvent(path, &value, conn)
+			hub.publishValueEvent(newPath, &val, conn)
 			//}
-		})()
+		})(property, value)
 	}
 	// Collect the callbacks
 	i := 1
@@ -129,9 +129,9 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 			if i == len(propertyMap) {
 				// We're done - send the response
 				if problems == "" {
-					sendAck(conn, msg.Ack, nil, nil)
+					hub.sendAck(conn, msg.Ack, nil, nil)
 				} else {
-					sendAck(conn, msg.Ack, &problems, nil)
+					hub.sendAck(conn, msg.Ack, &problems, nil)
 				}
 				close(responses)
 				return
@@ -150,20 +150,20 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
 	err, val := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	}
 	// grab le hash
 	err, currValHash := hash(val)
 	if err != nil {
 		errStr := err.Error()
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	}
 	// compare le hashes
 	if msg.Hash == string(currValHash[:]) {
 		hub.handleSet(msg, conn)
 	} else {
 		errStr := "conflict"
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	}
 }
 
@@ -172,16 +172,16 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *connection) {
 	err, val := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	}
 	// grab le hash
 	err, currValHash := hash(val)
 	if err != nil {
 		errStr := err.Error()
-		sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil)
 	}
 	// send the value with the hash
-	sendAck(conn, msg.Ack, nil, map[string]interface{}{
+	hub.sendAck(conn, msg.Ack, nil, map[string]interface{}{
 		"hash":  string(currValHash[:]),
 		"value": val,
 	})
@@ -192,8 +192,8 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 	var hasChildChangedSubs bool
 	var parentPath string
 
-	if hasParent(path) {
-		parentPath = parentOf(path)
+	if hub.hasParent(path) {
+		parentPath = hub.parentOf(path)
 	}
 	// Check if anyone is event subscribed to this
 	hasValueSubs = msgBus.hasSubscribers(path, EVENT_TYPE_VALUE)
@@ -222,10 +222,10 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 		msgBus.publish(path, EVENT_TYPE_VALUE, evtJson)
 	}
 	// Send the event to child changed listeners
-	if hasChildChangedSubs && hasParent(path) {
+	if hasChildChangedSubs && hub.hasParent(path) {
 		// Set the event type, parent path; jsonify
 		evt.Event = EVENT_TYPE_CHILD_CHANGED
-		evt.Path = parentOf(path)
+		evt.Path = hub.parentOf(path)
 		evtJson, err := json.Marshal(evt)
 		if err != nil {
 			problem := "Couldn't marshal msg value json\n"
@@ -236,36 +236,30 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 	}
 }
 
-func hasParent(path string) bool {
+func (hub *MsgHub) hasParent(path string) bool {
 	return path != "/"
 }
 
-func parentOf(path string) string {
+func (hub *MsgHub) parentOf(path string) string {
 	lastIndex := strings.LastIndex(path, "/")
 	return path[0:lastIndex]
 }
 
-func joinPaths(base string, extension string) string {
-	if strings.HasSuffix(base, "/") {
-		if strings.HasPrefix(extension, "/") {
-			if len(extension) > 1 {
-				return base
-			} else {
-				return base + extension[1:]
-			}
+func (hub *MsgHub) joinPaths(base string, extension string) string {
+	if !strings.HasSuffix(base, "/") {
+		base = base + "/"
+	}
+	if strings.HasPrefix(extension, "/") {
+		if len(extension) > 1 {
+			extension = extension[1:]
 		} else {
-			return base + "/" + extension
-		}
-	} else {
-		if strings.HasPrefix(extension, "/") {
-			return base + extension
-		} else {
-			return base + "/" + extension
+			extension = ""
 		}
 	}
+	return base + extension
 }
 
-func sendAck(conn *connection, ack int, error *string, result interface{}) {
+func (hub *MsgHub) sendAck(conn *connection, ack int, error *string, result interface{}) {
 	response := Ack{
 		Type:   MSG_CMD_ACK,
 		Ack:    ack,

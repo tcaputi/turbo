@@ -5,7 +5,6 @@
         <script type="text/javascript" src="static/turbo.js"></script>
     </head>
     <body>
-        <h2>YOU ARE LOOKING AT THE WORK OF A CODE DEITY</h2>
         <script type="text/javascript">
         $(function () {
             var turbo = new Turbo('/ws');
@@ -17,9 +16,23 @@
             turbo.set({ test: 123 }, function(err) {
                 console.log('The value was set');
             });
+            // Update Code
+            turbo.child('a').on('value', function(err, res) {
+                console.log('Update came through on a');
+            });
+            turbo.child('b').on('value', function(err, res) {
+                console.log('Update came through on b');
+            });
+            turbo.child('c').on('value', function(err, res) {
+                console.log('Update came through on c');
+            });
+            turbo.child('d').on('value', function(err, res) {
+                console.log('Update came through on d');
+            });
             turbo.update({a: {val:1}, b: {val:2}, c: {val:3}, d: {val:4}}, function(err) {
                 console.log('The value was updated');
-            })
+            });
+
         });
         </script>
     </body>
