@@ -70,16 +70,15 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	case MSG_CMD_TRANS_SET:
 		log.Printf("Connection #%d has done trans-set on path: '%s'\n", conn.id, msg.Path)
 		go hub.handleTransSet(&msg, conn)
+	case MSG_CMD_TRANS_GET:
+		log.Printf("Connection #%d has done trans-get on path: '%s'\n", conn.id, msg.Path)
+		go hub.handleTransGet(&msg, conn)
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
 }
 
 func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
-	//
-	// TODO run the db query representing the set
-	// TODO db needs to tell us if it was a create or an update
-	//
 	jsonValue, jsonErr := msg.Value.MarshalJSON()
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
@@ -148,9 +147,44 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *connection) {
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
 	// db get
-	// err, value := database.get(msg.Path)
-	// hash the db get
+	err, val := database.get(msg.Path)
+	if err != nil {
+		errStr := err.Error()
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}
+	// grab le hash
+	err, currValHash := hash(val)
+	if err != nil {
+		errStr := err.Error()
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}
 	// compare le hashes
+	if msg.Hash == string(currValHash[:]) {
+		hub.handleSet(msg, conn)
+	} else {
+		errStr := "conflict"
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}
+}
+
+func (hub *MsgHub) handleTransGet(msg *Msg, conn *connection) {
+	// db get
+	err, val := database.get(msg.Path)
+	if err != nil {
+		errStr := err.Error()
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}
+	// grab le hash
+	err, currValHash := hash(val)
+	if err != nil {
+		errStr := err.Error()
+		sendAck(conn, msg.Ack, &errStr, nil)
+	}
+	// send the value with the hash
+	sendAck(conn, msg.Ack, nil, map[string]interface{}{
+		"hash":  string(currValHash[:]),
+		"value": val,
+	})
 }
 
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *connection) {

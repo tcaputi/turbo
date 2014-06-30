@@ -31,6 +31,7 @@ type Msg struct {
 	Revision int             `json:"revision"`
 	Value    json.RawMessage `json:"value"`
 	Ack      int             `json:"ack"`
+	Hash     string          `json:"hash"`
 }
 
 type ValueEvent struct {
