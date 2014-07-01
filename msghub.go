@@ -79,17 +79,19 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 }
 
 func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
-	jsonValue, jsonErr := msg.Value.MarshalJSON()
+	var unmarshalledValue interface{}
+	jsonErr := json.Unmarshal(msg.Value, &unmarshalledValue)
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
 	} else {
-		err := database.set(msg.Path, string(jsonValue[:]))
+		log.Println("Now setting value to path ", msg.Path)
+		err := database.set(msg.Path, unmarshalledValue)
 		if err != nil {
 			errStr := err.Error()
-			hub.sendAck(conn, msg.Ack, &errStr, nil)
+			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
 		} else {
-			hub.sendAck(conn, msg.Ack, nil, nil)
+			hub.sendAck(conn, msg.Ack, nil, nil, "")
 			hub.publishValueEvent(msg.Path, &msg.Value, conn)
 		}
 	}
@@ -105,15 +107,22 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 	responses := make(chan *error)
 	for property, value := range propertyMap {
 		go (func(path string, val json.RawMessage) {
+			var unmarshalledValue interface{}
+
 			newPath := hub.joinPaths(msg.Path, path)
-			//
-			// TODO run the db query representing the set
-			// TODO db needs to tell us if it was a create or an update
-			//
-			responses <- nil // Error message here if there was a problem
-			// if err == nil { // Make this a thing when we have db shit
+			jsonErr := json.Unmarshal(val, &unmarshalledValue)
+			if jsonErr != nil {
+				responses <- &jsonErr
+				return // ಠ_ಠ
+			} else {
+				err := database.set(path, unmarshalledValue)
+				if err != nil {
+					responses <- &err
+					return
+				}
+			}
+			responses <- nil
 			hub.publishValueEvent(newPath, &val, conn)
-			//}
 		})(property, value)
 	}
 	// Collect the callbacks
@@ -129,9 +138,9 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 			if i == len(propertyMap) {
 				// We're done - send the response
 				if problems == "" {
-					hub.sendAck(conn, msg.Ack, nil, nil)
+					hub.sendAck(conn, msg.Ack, nil, nil, "")
 				} else {
-					hub.sendAck(conn, msg.Ack, &problems, nil)
+					hub.sendAck(conn, msg.Ack, &problems, nil, "")
 				}
 				close(responses)
 				return
@@ -150,20 +159,29 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
 	err, val := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
 	}
-	// grab le hash
-	err, currValHash := hash(val)
-	if err != nil {
-		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
-	}
-	// compare le hashes
-	if msg.Hash == string(currValHash[:]) {
-		hub.handleSet(msg, conn)
+
+	if val != nil {
+		// grab le hash
+		err, currValHash := hash(val)
+		if err != nil {
+			errStr := err.Error()
+			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+		}
+		// compare le hashes
+		if msg.Hash == string(currValHash[:]) {
+			hub.handleSet(msg, conn) // actually
+			// this should work dafaq
+		} else {
+			errStr := "conflict"
+			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+		}
 	} else {
-		errStr := "conflict"
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
+		// hashing dont make sense if val is nil
+		// this is fine for now
+		// no - we send nil
+		hub.handleSet(msg, conn)
 	}
 }
 
@@ -172,19 +190,22 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *connection) {
 	err, val := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+		return
+	}
+	if val == nil {
+		hub.sendAck(conn, msg.Ack, nil, nil, "")
+		return
 	}
 	// grab le hash
+	log.Println("Now hashing val:", val)
 	err, currValHash := hash(val)
 	if err != nil {
 		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil)
+		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
 	}
 	// send the value with the hash
-	hub.sendAck(conn, msg.Ack, nil, map[string]interface{}{
-		"hash":  string(currValHash[:]),
-		"value": val,
-	})
+	hub.sendAck(conn, msg.Ack, nil, val, string(currValHash[:]))
 }
 
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *connection) {
@@ -259,14 +280,20 @@ func (hub *MsgHub) joinPaths(base string, extension string) string {
 	return base + extension
 }
 
-func (hub *MsgHub) sendAck(conn *connection, ack int, error *string, result interface{}) {
+func (hub *MsgHub) sendAck(conn *connection, ack int, errString *string, result interface{}, hash string) {
 	response := Ack{
 		Type:   MSG_CMD_ACK,
 		Ack:    ack,
 		Result: result,
 	}
-	if error != nil {
-		response.Error = *error
+	if hash != "" {
+		// Strings cant be nil in go
+		// YES. I KNOW.
+		response.Hash = hash
+	}
+	if errString != nil {
+		log.Println("Sending problem back to client in ack form:", *errString)
+		response.Error = *errString
 	}
 	payload, err := json.Marshal(response)
 	if err == nil {

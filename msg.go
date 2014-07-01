@@ -25,13 +25,12 @@ const (
 )
 
 type Msg struct {
-	Cmd      byte            `json:"cmd"`
-	Path     string          `json:"path"`
-	Event    byte            `json:"eventType"`
-	Revision int             `json:"revision"`
-	Value    json.RawMessage `json:"value"`
-	Ack      int             `json:"ack"`
-	Hash     string          `json:"hash"`
+	Cmd   byte            `json:"cmd"`
+	Path  string          `json:"path"`
+	Event byte            `json:"eventType"`
+	Value json.RawMessage `json:"value"`
+	Ack   int             `json:"ack"`
+	Hash  string          `json:"hash"`
 }
 
 type ValueEvent struct {
@@ -45,6 +44,7 @@ type Ack struct {
 	Error  string      `json:"err"`
 	Result interface{} `json:"res"`
 	Ack    int         `json:"ack"`
+	Hash   string      `json:"hash"`
 }
 
 type RawMsg struct {

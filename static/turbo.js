@@ -34,6 +34,7 @@ var Turbo = (function () {
     var _offlineQueue = [];
 
     var _send = function _send(val) {
+        console.log("Sending: ", val);
         if (_isOffline) {
             _offlineQueue.push(val);
         } else {
@@ -66,7 +67,7 @@ var Turbo = (function () {
                 switch (msg.type) {
                     case MSG_CMD_ACK:
                         if (_ackCallbacks[msg.ack]) {
-                            _ackCallbacks[msg.ack](msg.err, msg.res);
+                            _ackCallbacks[msg.ack](msg.err, msg.res, msg.hash);
                             delete _ackCallbacks[msg.ack];
                         }
                         break;
@@ -100,17 +101,17 @@ var Turbo = (function () {
         _ws = undefined;
     };
 
-    var _attemptTransSet = function _attemptTransSet(path, value, revision, transform, done) {
-        ack = _ack++;
+    var _attemptTransSet = function _attemptTransSet(path, value, hash, transform, done) {
+        var ack = _ack++;
         _send(JSON.stringify({
             'cmd': MSG_CMD_TRANS_SET,
             'path': path,
-            'revision': revision,
+            'hash': hash,
             'value': transform(value),
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, newValue, newRevision) {
-            if (err === 'conflict') _attemptTransSet(path, newValue, newRevision, transform, done);
+        _ackCallbacks[ack] = function(err, newValue, newHash) {
+            if (err === 'conflict') _attemptTransSet(path, newValue, newHash, transform, done);
             else if (err) done(err);
             else done(undefined, newValue);
         };
@@ -278,9 +279,9 @@ var Turbo = (function () {
             'path': self._path,
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, value, revision) {
+        _ackCallbacks[ack] = function(err, value, hash) {
             if (err) onComplete(err);
-            else _attemptTransSet(self._path, value, revision, transactionUpdate, onComplete);
+            else _attemptTransSet(self._path, value, hash, transactionUpdate, onComplete);
         };
     };
 

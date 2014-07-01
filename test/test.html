@@ -31,9 +31,19 @@
             });
             turbo.update({a: {val:1}, b: {val:2}, c: {val:3}, d: {val:4}}, function(err) {
                 console.log('The value was updated');
+                // Transaction code
+            //     turbo.child('a').transaction(function(val) {
+            //         if (!val) val = {};
+            //         val.truth = "TOM IS AWFUL";
+            //         console.log("Running an update...");
+            //         return val; // No we good - it turns into an obj
+            //     }, function(err) {
+            //         console.log('Transaction completed successfully. Maybe.');
+            //     }, false);
+            //     // I was thinking we need to move to like an actual unit test system for testing
+            //     // the client side js
+                });
             });
-
-        });
         </script>
     </body>
 </html>
