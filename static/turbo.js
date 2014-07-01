@@ -280,7 +280,7 @@ var Turbo = (function () {
         }));
         _ackCallbacks[ack] = function(err, value, revision) {
             if (err) onComplete(err);
-            else _attemptTransSet(self._path, value, revision, onComplete);
+            else _attemptTransSet(self._path, value, revision, transactionUpdate, onComplete);
         };
     };
 
