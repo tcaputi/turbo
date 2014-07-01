@@ -9,6 +9,7 @@ type PathTree struct {
 }
 
 type PathTreeNode struct {
+	tree     *PathTree
 	parent   *PathTreeNode
 	children map[*PathTreeNode]bool
 	path     string
@@ -19,6 +20,14 @@ func (tree *PathTree) path(path string) string {
 	return "/" + strings.Trim(path, "/")
 }
 
+func (tree *PathTree) get(path string) *PathTreeNode {
+	if tree.refs[path] == nil {
+		return nil
+	} else {
+		return tree.refs[path]
+	}
+}
+
 func (tree *PathTree) put(path string) *PathTreeNode {
 	path = tree.path(path)
 	// First check if this path represents a node already
@@ -27,6 +36,7 @@ func (tree *PathTree) put(path string) *PathTreeNode {
 	}
 
 	node := PathTreeNode{
+		tree:     tree,
 		parent:   nil,
 		children: make(map[*PathTreeNode]bool),
 		path:     path,
@@ -111,14 +121,28 @@ func (tree *PathTree) children(path string) *map[*PathTreeNode]bool {
 	}
 }
 
-func (tree *PathTree) kill(path string) *map[string]bool {
-	node := tree.refs[path]
-	list := make(map[string]bool)
-	if node != nil {
-		// TODO
-		// tree.killHelper(list, node)
-		return &list
-	} else {
-		return nil
+func (node *PathTreeNode) remove() {
+	// Append children
+	for nodeChild, _ := range node.children {
+		node.parent.children[nodeChild] = true
+		nodeChild.parent = node.parent
+		delete(node.children, nodeChild)
 	}
+	// Orphan this node
+	delete(node.parent.children, node)
+	node.parent = nil
+	// Remove from refs
+	delete(node.tree.refs, node.path)
+}
+
+func (node *PathTreeNode) cascadeRemove() {
+	// Append children
+	for nodeChild, _ := range node.children {
+		nodeChild.cascadeRemove()
+	}
+	// Orphan this node
+	delete(node.parent.children, node)
+	node.parent = nil
+	// Remove from refs
+	delete(node.tree.refs, node.path)
 }
