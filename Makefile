@@ -8,8 +8,8 @@ clean:
 	rm test/test
 build:
 	go install
-run: build
-	cd ./test && go build && cd ..&& clear && ./test/test
+live: build
+	cd ./js/test && clear && go run ./main.go
 init:
 	go get && cd ./test && go get
 commit:

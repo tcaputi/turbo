@@ -1,28 +1,28 @@
-var Turbo = (function () {
+var Turbo = (function() {
     'use strict';
 
-    var MSG_CMD_ON        = 1,
-        MSG_CMD_OFF       = 2,
-        MSG_CMD_SET       = 3,
-        MSG_CMD_UPDATE    = 4,
-        MSG_CMD_REMOVE    = 5,
+    var MSG_CMD_ON = 1,
+        MSG_CMD_OFF = 2,
+        MSG_CMD_SET = 3,
+        MSG_CMD_UPDATE = 4,
+        MSG_CMD_REMOVE = 5,
         MSG_CMD_TRANS_SET = 6,
-        MSG_CMD_PUSH      = 7,
+        MSG_CMD_PUSH = 7,
         MSG_CMD_TRANS_GET = 8,
-        MSG_CMD_AUTH      = 9,
-        MSG_CMD_UNAUTH    = 10,
-        MSG_CMD_ACK       = 11;
+        MSG_CMD_AUTH = 9,
+        MSG_CMD_UNAUTH = 10,
+        MSG_CMD_ACK = 11;
 
-    var EVENT_TYPE_VALUE         = 0,
-        EVENT_TYPE_CHILD_ADDED   = 1,
+    var EVENT_TYPE_VALUE = 0,
+        EVENT_TYPE_CHILD_ADDED = 1,
         EVENT_TYPE_CHILD_CHANGED = 2,
-        EVENT_TYPE_CHILD_MOVED   = 3,
+        EVENT_TYPE_CHILD_MOVED = 3,
         EVENT_TYPE_CHILD_REMOVED = 4;
 
-    var EVENT_TYPE_VALUE_STR         = 'value',
-        EVENT_TYPE_CHILD_ADDED_STR   = 'child_added',
+    var EVENT_TYPE_VALUE_STR = 'value',
+        EVENT_TYPE_CHILD_ADDED_STR = 'child_added',
         EVENT_TYPE_CHILD_CHANGED_STR = 'child_changed',
-        EVENT_TYPE_CHILD_MOVED_STR   = 'child_moved',
+        EVENT_TYPE_CHILD_MOVED_STR = 'child_moved',
         EVENT_TYPE_CHILD_REMOVED_STR = 'child_removed';
 
     var _ws = undefined;
@@ -72,7 +72,7 @@ var Turbo = (function () {
                         }
                         break;
                     default:
-			if (!msg.eventType || !msg.path) return; // Filter for 'on' events
+                        if (!msg.eventType || !msg.path) return; // Filter for 'on' events
 
                         if (_listeners[msg.path] && _listeners[msg.path][msg.eventType]) {
                             var listenerMap = _listeners[msg.path][msg.eventType];
@@ -119,16 +119,16 @@ var Turbo = (function () {
 
     var _eventType = function _eventType(eventTypeStr) {
         switch (eventTypeStr) {
-        case EVENT_TYPE_VALUE_STR:
-            return EVENT_TYPE_VALUE;
-        case EVENT_TYPE_CHILD_ADDED_STR:
-            return EVENT_TYPE_CHILD_ADDED;
-        case EVENT_TYPE_CHILD_CHANGED_STR:
-            return EVENT_TYPE_CHILD_CHANGED;
-        case EVENT_TYPE_CHILD_MOVED_STR:
-            return EVENT_TYPE_CHILD_MOVED;
-        case EVENT_TYPE_CHILD_REMOVED:
-            return EVENT_TYPE_CHILD_REMOVED;
+            case EVENT_TYPE_VALUE_STR:
+                return EVENT_TYPE_VALUE;
+            case EVENT_TYPE_CHILD_ADDED_STR:
+                return EVENT_TYPE_CHILD_ADDED;
+            case EVENT_TYPE_CHILD_CHANGED_STR:
+                return EVENT_TYPE_CHILD_CHANGED;
+            case EVENT_TYPE_CHILD_MOVED_STR:
+                return EVENT_TYPE_CHILD_MOVED;
+            case EVENT_TYPE_CHILD_REMOVED:
+                return EVENT_TYPE_CHILD_REMOVED;
         }
         return null;
     };
@@ -146,7 +146,7 @@ var Turbo = (function () {
         this._url = url;
         this._path = path;
 
-        if (!_ws) _connect(url, function (evt) {
+        if (!_ws) _connect(url, function(evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
                 _ws.send(msg);
@@ -324,7 +324,7 @@ var Turbo = (function () {
     };
 
     Client.prototype.unauth = function(onComplete) {
-        if (!_token) throw 'Cannout unauth if not authed yet';
+        if (!_token) throw 'Cannot unauth if not authed yet';
 
         var ack = _ack++;
         _send(JSON.stringify({
@@ -343,7 +343,7 @@ var Turbo = (function () {
     };
 
     Client.goOnline = function() {
-        _connect(this._url, function (evt) {
+        _connect(this._url, function(evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
                 _ws.send(msg);

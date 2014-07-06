@@ -17,25 +17,32 @@ func main() {
 	// Log config
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	// Make a turbo instance
-	err, turboServer := turbo.New("mongodb://bitbeam.info:27017", "test", "entries")
+	err, tbo := turbo.New("mongodb://bitbeam.info:27017", "test", "entries")
 	if err != nil {
 		return
 	}
-	staticPath, err := filepath.Abs("./static")
+	staticPath, err := filepath.Abs(".")
 	if err != nil {
 		log.Println("Could not make a path to the static folder", err)
 		return
 	}
-	log.Println("Referencing static turbo files at path", staticPath)
-	indexPath, err := filepath.Abs("./test/test.html")
+	jsPath, err := filepath.Abs("../turbo.js")
 	if err != nil {
-		log.Println("Could not make a path to test.html", err)
+		log.Println("Could not make a path to turbo.js", err)
+		return
+	}
+	indexPath, err := filepath.Abs("./index.html")
+	if err != nil {
+		log.Println("Could not make a path to index.html", err)
 		return
 	}
 	// Register turbo handler
-	http.HandleFunc("/ws", turboServer.Handler)
+	http.HandleFunc("/ws", tbo.Handler)
 	// Register the static files
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(staticPath))))
+	http.HandleFunc("/turbo.js", func(res http.ResponseWriter, req *http.Request) {
+		http.ServeFile(res, req, jsPath)
+	})
 	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
 		http.ServeFile(res, req, indexPath)
 	})

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Turbo Tests</title>
+        <link rel="stylesheet" media="all" href="/static/lib/mocha.css">
+    </head>
+    <body>
+        <div id="mocha">
+            <p>
+                <a href=".">Index</a>
+            </p>
+        </div>
+        <div id="messages"></div>
+        <div id="fixtures"></div>
+
+        <script src="turbo.js"></script>
+
+        <script src="/static/lib/mocha.js"></script>
+        <script src="/static/lib/chai.js"></script>
+        <script type="text/javascript">
+            mocha.setup('bdd');
+        </script>
+        <script src="/static/test.js"></script>
+        <script type="text/javascript">
+            mocha.run();
+        </script>
+    </body>
+</html>
