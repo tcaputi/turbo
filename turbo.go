@@ -1,61 +1,39 @@
 package turbo
 
 import (
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"sync"
-)
-
-const (
-	UPGRADER_READ_BUF_SIZE  = 1024
-	UPGRADER_WRITE_BUF_SIZE = 1024
-)
-
-var (
-	connectionIdCounter uint64
-	connectionIdMutex   = &sync.Mutex{}
-	upgrader            = &websocket.Upgrader{
-		ReadBufferSize:  UPGRADER_READ_BUF_SIZE,
-		WriteBufferSize: UPGRADER_WRITE_BUF_SIZE,
-	}
 )
 
 type Turbo struct {
+	bus *MsgBus
+	hub *MsgHub
 }
 
 func (t *Turbo) Handler(res http.ResponseWriter, req *http.Request) {
-	ws, err := upgrader.Upgrade(res, req, nil)
+	conn, err := NewConn(t.hub, res, req)
 	if err != nil {
-		log.Println("Could not upgrade incoming connection", err)
+		log.Println("Could not setup incoming Conn", err)
 		return
 	}
-	conn := &connection{
-		id:     connectionId(),
-		outbox: make(chan []byte, 256),
-		ws:     ws,
-		subs:   make(map[*SubscriberSet]bool),
-	}
-	msgHub.registration <- conn
-	defer conn.kill() // Kill the connection on exit
+	t.hub.registerConn(conn)
+	defer t.hub.unregisterConn(conn)
 	go conn.writer()
-	conn.reader() // Left outside go routine to stall execution
+	conn.reader() // Left outside go routine to block
 }
 
 // TODO this should take config
 func New(connectionString, dbName, colName string) (error, *Turbo) {
+	bus := NewMsgBus()
+	hub := NewMsgHub(bus)
+	turbo := Turbo{
+		bus: bus,
+		hub: hub,
+	}
+	// Load db configuation
 	database.init(connectionString, dbName, colName)
-	go msgHub.run()
-	return nil, &Turbo{}
-}
+	// Run the hub
+	go hub.listen()
 
-func connectionId() uint64 {
-	var newId uint64
-
-	connectionIdMutex.Lock()
-	connectionIdCounter += 1
-	newId = connectionIdCounter
-	connectionIdMutex.Unlock()
-
-	return newId
+	return nil, &turbo
 }

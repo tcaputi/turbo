@@ -17,11 +17,13 @@ const (
 	MSG_CMD_UNAUTH    = 10
 	MSG_CMD_ACK       = 11
 
-	EVENT_TYPE_VALUE         = 1
-	EVENT_TYPE_CHILD_ADDED   = 2
-	EVENT_TYPE_CHILD_CHANGED = 3
-	EVENT_TYPE_CHILD_MOVED   = 4
-	EVENT_TYPE_CHILD_REMOVED = 5
+	EVENT_TYPE_VALUE         = 0
+	EVENT_TYPE_CHILD_ADDED   = 1
+	EVENT_TYPE_CHILD_CHANGED = 2
+	EVENT_TYPE_CHILD_MOVED   = 3
+	EVENT_TYPE_CHILD_REMOVED = 4
+
+	EVENT_TYPES = 5
 )
 
 type Msg struct {
@@ -49,5 +51,5 @@ type Ack struct {
 
 type RawMsg struct {
 	Payload []byte
-	Conn    *connection
+	Conn    *Conn
 }

@@ -1,177 +1,156 @@
 package turbo
 
 import (
-	"log"
+	"sync"
 )
 
-type SubscriberSet struct {
-	subs map[*connection]bool
+type MsgBus struct {
+	evtMaps   map[*PathTreeNode]*[EVENT_TYPES]*map[*Conn]bool
+	pathTree  *PathTree
+	pathLocks map[string]*sync.Mutex
 }
 
-type EventMap struct {
-	value        *SubscriberSet
-	childAdded   *SubscriberSet
-	childChanged *SubscriberSet
-	childMoved   *SubscriberSet
-	childRemoved *SubscriberSet
+func NewMsgBus() *MsgBus {
+	bus := MsgBus{
+		evtMaps:   make(map[*PathTreeNode]*[EVENT_TYPES]*map[*Conn]bool),
+		pathTree:  NewPathTree(),
+		pathLocks: make(map[string]*sync.Mutex),
+	}
+	return &bus
 }
 
-type MessageBus struct {
-	pathMap map[string]*EventMap
-}
+func (bus *MsgBus) subscribe(evt byte, path string, conn *Conn) {
+	var evtMap [EVENT_TYPES]*map[*Conn]bool
+	var connSet map[*Conn]bool
+	var node *PathTreeNode
 
-var (
-	msgBus = &MessageBus{
-		pathMap: make(map[string]*EventMap),
-	}
-)
+	node = bus.pathTree.put(path)
+	if _, exists := bus.evtMaps[node]; !exists {
+		var lock *sync.Mutex
+		if bus.pathLocks[path] != nil {
+			lock = bus.pathLocks[path]
+		} else {
+			lock = &sync.Mutex{}
+			bus.pathLocks[path] = lock
+		}
+		lock.Lock()
 
-func (evtMap *EventMap) subscribe(eventType byte, conn *connection) {
-	switch eventType {
-	case EVENT_TYPE_VALUE:
-		if evtMap.value == nil {
-			evtMap.value = &SubscriberSet{subs: make(map[*connection]bool)}
+		if _, exists := bus.evtMaps[node]; !exists {
+			evtMap = [EVENT_TYPES]*map[*Conn]bool{}
+			bus.evtMaps[node] = &evtMap
 		}
-		conn.subs[evtMap.value] = true
-		evtMap.value.subs[conn] = true
-	case EVENT_TYPE_CHILD_ADDED:
-		if evtMap.childAdded == nil {
-			evtMap.childAdded = &SubscriberSet{subs: make(map[*connection]bool)}
-		}
-		conn.subs[evtMap.childAdded] = true
-		evtMap.childAdded.subs[conn] = true
-	case EVENT_TYPE_CHILD_CHANGED:
-		if evtMap.childChanged == nil {
-			evtMap.childChanged = &SubscriberSet{subs: make(map[*connection]bool)}
-		}
-		conn.subs[evtMap.childChanged] = true
-		evtMap.childChanged.subs[conn] = true
-	case EVENT_TYPE_CHILD_MOVED:
-		if evtMap.childMoved == nil {
-			evtMap.childMoved = &SubscriberSet{subs: make(map[*connection]bool)}
-		}
-		conn.subs[evtMap.childMoved] = true
-		evtMap.childMoved.subs[conn] = true
-	case EVENT_TYPE_CHILD_REMOVED:
-		if evtMap.childRemoved == nil {
-			evtMap.childRemoved = &SubscriberSet{subs: make(map[*connection]bool)}
-		}
-		conn.subs[evtMap.childRemoved] = true
-		evtMap.childRemoved.subs[conn] = true
-	}
-}
+		delete(bus.pathLocks, path)
 
-func (evtMap *EventMap) unsubscribe(eventType byte, conn *connection) {
-	switch eventType {
-	case EVENT_TYPE_VALUE:
-		if evtMap.value == nil {
-			return
-		}
-		delete(evtMap.value.subs, conn)
-	case EVENT_TYPE_CHILD_ADDED:
-		if evtMap.childAdded == nil {
-			return
-		}
-		delete(evtMap.childAdded.subs, conn)
-	case EVENT_TYPE_CHILD_CHANGED:
-		if evtMap.childChanged == nil {
-			return
-		}
-		delete(evtMap.childChanged.subs, conn)
-	case EVENT_TYPE_CHILD_MOVED:
-		if evtMap.childMoved == nil {
-			return
-		}
-		delete(evtMap.childMoved.subs, conn)
-	case EVENT_TYPE_CHILD_REMOVED:
-		if evtMap.childRemoved == nil {
-			return
-		}
-		delete(evtMap.childRemoved.subs, conn)
-	}
-}
-
-func (evtMap *EventMap) subscribers(eventType byte) map[*connection]bool {
-	switch eventType {
-	case EVENT_TYPE_VALUE:
-		if evtMap.value == nil {
-			return nil
-		}
-		return evtMap.value.subs
-	case EVENT_TYPE_CHILD_ADDED:
-		if evtMap.childAdded == nil {
-			return nil
-		}
-		return evtMap.childAdded.subs
-	case EVENT_TYPE_CHILD_CHANGED:
-		if evtMap.childChanged == nil {
-			return nil
-		}
-		return evtMap.childChanged.subs
-	case EVENT_TYPE_CHILD_MOVED:
-		if evtMap.childMoved == nil {
-			return nil
-		}
-		return evtMap.childMoved.subs
-	case EVENT_TYPE_CHILD_REMOVED:
-		if evtMap.childRemoved == nil {
-			return nil
-		}
-		return evtMap.childRemoved.subs
-	default:
-		return nil
-	}
-}
-
-func (mb *MessageBus) subscribe(path string, eventType byte, conn *connection) {
-	if mb.pathMap == nil {
-		mb.pathMap = make(map[string]*EventMap)
-	}
-	if mb.pathMap[path] == nil {
-		mb.pathMap[path] = &EventMap{}
-	}
-	mb.pathMap[path].subscribe(eventType, conn)
-}
-
-func (mb *MessageBus) unsubscribe(path string, eventType byte, conn *connection) {
-	if mb.pathMap == nil {
-		return
-	}
-	if mb.pathMap[path] == nil {
-		return
-	}
-	mb.pathMap[path].unsubscribe(eventType, conn)
-}
-
-func (mb *MessageBus) unsubscribeAll(conn *connection) {
-	for subSet := range conn.subs {
-		delete(subSet.subs, conn)
-	}
-}
-
-func (mb *MessageBus) publish(path string, eventType byte, msg []byte) {
-	subSwitch := mb.pathMap[path]
-	if subSwitch != nil {
-		for sub := range subSwitch.subscribers(eventType) {
-			select {
-			case sub.outbox <- msg:
-			default:
-				defer sub.kill()
-			}
-		}
+		lock.Unlock()
 	} else {
-		log.Println("Could not find a sub switch for path", path)
+		evtMap = *(bus.evtMaps[node])
+	}
+
+	if evtMap[evt] == nil {
+		var lock *sync.Mutex
+		if bus.pathLocks[path] != nil {
+			lock = bus.pathLocks[path]
+		} else {
+			lock = &sync.Mutex{}
+			bus.pathLocks[path] = lock
+		}
+		lock.Lock()
+
+		connSet = make(map[*Conn]bool)
+		evtMap[evt] = &connSet
+		delete(bus.pathLocks, path)
+
+		lock.Unlock()
+	} else {
+		connSet = *(evtMap[evt])
+	}
+
+	connSet[conn] = true
+	conn.subscriptions[&connSet] = true
+}
+
+func (bus *MsgBus) unsubscribe(evt byte, path string, conn *Conn) {
+	var evtMap [EVENT_TYPES]*map[*Conn]bool
+	var connSet map[*Conn]bool
+	var node *PathTreeNode
+
+	node = bus.pathTree.get(path)
+	if node == nil {
+		return
+	}
+
+	if _, exists := bus.evtMaps[node]; !exists {
+		return
+	} else {
+		evtMap = *(bus.evtMaps[node])
+	}
+
+	if evtMap[evt] == nil {
+		return
+	} else {
+		connSet = *(evtMap[evt])
+	}
+
+	if _, exists := connSet[conn]; !exists {
+		return
+	} else {
+		delete(connSet, conn)
+		delete(conn.subscriptions, &connSet)
 	}
 }
 
-func (mb *MessageBus) hasSubscribers(path string, eventType byte) bool {
-	subSwitch := mb.pathMap[path]
-	if subSwitch == nil {
+func (bus *MsgBus) publish(evt byte, path string, msg []byte) {
+	var evtMap [EVENT_TYPES]*map[*Conn]bool
+	var connSet map[*Conn]bool
+	var node *PathTreeNode
+
+	node = bus.pathTree.get(path)
+	if node == nil {
+		return
+	}
+
+	if _, exists := bus.evtMaps[node]; !exists {
+		return
+	} else {
+		evtMap = *(bus.evtMaps[node])
+	}
+
+	if evtMap[evt] == nil {
+		return
+	} else {
+		connSet = *(evtMap[evt])
+	}
+
+	for conn, _ := range connSet {
+		conn.outbox <- msg
+	}
+}
+
+func (bus *MsgBus) unsubscribeAll(conn *Conn) {
+	for subscription := range conn.subscriptions {
+		delete(*subscription, conn)
+		delete(conn.subscriptions, subscription)
+	}
+}
+
+func (bus *MsgBus) hasSubscribers(evt byte, path string) bool {
+	var evtMap [EVENT_TYPES]*map[*Conn]bool
+	var node *PathTreeNode
+
+	node = bus.pathTree.get(path)
+	if node == nil {
 		return false
 	}
-	subs := subSwitch.subscribers(eventType)
-	if subs == nil {
+
+	if _, exists := bus.evtMaps[node]; !exists {
 		return false
+	} else {
+		evtMap = *(bus.evtMaps[node])
 	}
-	return len(subs) >= 0
+
+	if evtMap[evt] == nil {
+		return false
+	} else {
+		return len(*evtMap[evt]) > 0
+	}
 }

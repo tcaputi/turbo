@@ -8,36 +8,49 @@ import (
 
 type MsgHub struct {
 	// Registered connections.
-	connections map[uint64]*connection
+	connections map[uint64]*Conn
 	// Register requests from the connections.
-	registration chan *connection
+	registration chan *Conn
 	// Unregister requests from connections.
-	unregistration chan *connection
+	unregistration chan *Conn
+	// Message bus reference
+	bus *MsgBus
 }
 
-var (
-	msgHub = &MsgHub{
-		registration:   make(chan *connection),
-		unregistration: make(chan *connection),
-		connections:    make(map[uint64]*connection),
+func NewMsgHub(bus *MsgBus) *MsgHub {
+	hub := MsgHub{
+		registration:   make(chan *Conn),
+		unregistration: make(chan *Conn),
+		connections:    make(map[uint64]*Conn),
+		bus:            bus,
 	}
-)
+	return &hub
+}
 
-func (hub *MsgHub) run() {
+func (hub *MsgHub) listen() {
 	for {
 		select {
-		// There is a connection 'c' in the registration queue
+		// There is a Conn 'c' in the registration queue
 		case conn := <-hub.registration:
 			hub.connections[conn.id] = conn
-		// There is a connection 'c' in the unregistration queue
+			log.Printf("Connection #%d connected.\n", conn.id)
+		// There is a Conn 'c' in the unregistration queue
 		case conn := <-hub.unregistration:
 			delete(hub.connections, conn.id)
-			msgBus.unsubscribeAll(conn)
+			hub.bus.unsubscribeAll(conn)
 			close(conn.outbox)
 			conn.ws.Close()
 			log.Printf("Connection #%d was killed.\n", conn.id)
 		}
 	}
+}
+
+func (hub *MsgHub) registerConn(conn *Conn) {
+	hub.registration <- conn
+}
+
+func (hub *MsgHub) unregisterConn(conn *Conn) {
+	hub.unregistration <- conn
 }
 
 func (hub *MsgHub) route(rawMsg *RawMsg) {
@@ -54,10 +67,10 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	switch msg.Cmd {
 	case MSG_CMD_ON:
 		log.Printf("Connection #%d subscribed to: '%s', event: '%d'\n", conn.id, msg.Path, msg.Event)
-		msgBus.subscribe(msg.Path, msg.Event, conn)
+		hub.bus.subscribe(msg.Event, msg.Path, conn)
 	case MSG_CMD_OFF:
 		log.Printf("Connection #%d unsubscribed from: '%s', event: '%d'\n", conn.id, msg.Path, msg.Event)
-		msgBus.unsubscribe(msg.Path, msg.Event, conn)
+		hub.bus.unsubscribe(msg.Event, msg.Path, conn)
 	case MSG_CMD_SET:
 		log.Printf("Connection #%d has set a value to path: '%s'\n", conn.id, msg.Path)
 		go hub.handleSet(&msg, conn)
@@ -78,7 +91,7 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	}
 }
 
-func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
+func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 	var unmarshalledValue interface{}
 	jsonErr := json.Unmarshal(msg.Value, &unmarshalledValue)
 	if jsonErr != nil {
@@ -98,7 +111,7 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *connection) {
 }
 
 // TODO add "remove with null" support
-func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
+func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
 	if msg.Value == nil {
 		return
 	}
@@ -151,10 +164,10 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *connection) {
 	}
 }
 
-func (hub *MsgHub) handleRemove(msg *Msg, conn *connection) {
+func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 }
 
-func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
+func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 	// db get
 	err, val := database.get(msg.Path)
 	if err != nil {
@@ -185,7 +198,7 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *connection) {
 	}
 }
 
-func (hub *MsgHub) handleTransGet(msg *Msg, conn *connection) {
+func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	// db get
 	err, val := database.get(msg.Path)
 	if err != nil {
@@ -208,7 +221,7 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *connection) {
 	hub.sendAck(conn, msg.Ack, nil, val, string(currValHash[:]))
 }
 
-func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *connection) {
+func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *Conn) {
 	var hasValueSubs bool
 	var hasChildChangedSubs bool
 	var parentPath string
@@ -217,9 +230,9 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 		parentPath = hub.parentOf(path)
 	}
 	// Check if anyone is event subscribed to this
-	hasValueSubs = msgBus.hasSubscribers(path, EVENT_TYPE_VALUE)
+	hasValueSubs = hub.bus.hasSubscribers(EVENT_TYPE_VALUE, path)
 	if parentPath != "" {
-		hasChildChangedSubs = msgBus.hasSubscribers(path, EVENT_TYPE_CHILD_CHANGED)
+		hasChildChangedSubs = hub.bus.hasSubscribers(EVENT_TYPE_CHILD_CHANGED, path)
 	}
 	// Do not continue if there are no subscribers
 	if !hasValueSubs && !hasChildChangedSubs {
@@ -240,7 +253,7 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 			log.Fatalln(problem, err)
 			return
 		}
-		msgBus.publish(path, EVENT_TYPE_VALUE, evtJson)
+		hub.bus.publish(EVENT_TYPE_VALUE, path, evtJson)
 	}
 	// Send the event to child changed listeners
 	if hasChildChangedSubs && hub.hasParent(path) {
@@ -253,7 +266,7 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 			log.Fatalln(problem, err)
 			return
 		}
-		msgBus.publish(path, EVENT_TYPE_CHILD_CHANGED, evtJson)
+		hub.bus.publish(EVENT_TYPE_CHILD_CHANGED, path, evtJson)
 	}
 }
 
@@ -280,7 +293,7 @@ func (hub *MsgHub) joinPaths(base string, extension string) string {
 	return base + extension
 }
 
-func (hub *MsgHub) sendAck(conn *connection, ack int, errString *string, result interface{}, hash string) {
+func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interface{}, hash string) {
 	response := Ack{
 		Type:   MSG_CMD_ACK,
 		Ack:    ack,
@@ -300,7 +313,7 @@ func (hub *MsgHub) sendAck(conn *connection, ack int, errString *string, result 
 		select {
 		case conn.outbox <- payload:
 		default:
-			defer conn.kill()
+			hub.unregisterConn(conn)
 		}
 	}
 }

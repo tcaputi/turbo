@@ -99,3 +99,18 @@ func TestChildren(t *testing.T) {
 		t.Error("chil4", chil4)
 	}
 }
+
+func TestRemove(t *testing.T) {
+	tree := &PathTree{
+		refs: make(map[string]*PathTreeNode),
+	}
+
+	tree.put("/a/b/c")
+	tree.put("a/b/c/d/e/f/g/h/")
+	tree.put("/a/b/c/d/e/f")
+	tree.put("/a/b/c/d/e/f/g/h")
+	tree.put("a/b/c/d/e/f/1")
+	tree.put("a/b/c/d/e/f/1/2")
+	tree.put("a/b/c/d/e/f/g/h/i/j")
+	tree.put("/a/b/c/d/")
+}

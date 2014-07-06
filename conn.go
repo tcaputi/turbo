@@ -2,20 +2,55 @@ package turbo
 
 import (
 	"github.com/gorilla/websocket"
+	"log"
+	"net/http"
+	"sync"
 )
 
-type connection struct {
-	// The id of this connection
+const (
+	UPGRADER_READ_BUF_SIZE  = 1024
+	UPGRADER_WRITE_BUF_SIZE = 1024
+)
+
+var (
+	connectionIdCounter uint64
+	connectionIdMutex   = &sync.Mutex{}
+	upgrader            = &websocket.Upgrader{
+		ReadBufferSize:  UPGRADER_READ_BUF_SIZE,
+		WriteBufferSize: UPGRADER_WRITE_BUF_SIZE,
+	}
+)
+
+type Conn struct {
+	// The id of this Conn
 	id uint64
-	// The websocket connection.
+	// The websocket Conn.
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
 	outbox chan []byte
 	// Event subscriptions
-	subs map[*SubscriberSet]bool
+	subscriptions map[*map[*Conn]bool]bool
+	// Hub reference
+	hub *MsgHub
 }
 
-func (conn *connection) reader() {
+func NewConn(hub *MsgHub, res http.ResponseWriter, req *http.Request) (*Conn, error) {
+	ws, err := upgrader.Upgrade(res, req, nil)
+	if err != nil {
+		log.Println("Could not upgrade incoming Conn", err)
+		return nil, err
+	}
+	conn := Conn{
+		id:            newConnId(),
+		outbox:        make(chan []byte, 256),
+		ws:            ws,
+		subscriptions: make(map[*map[*Conn]bool]bool),
+		hub:           hub,
+	}
+	return &conn, nil
+}
+
+func (conn *Conn) reader() {
 	for {
 		_, message, err := conn.ws.ReadMessage()
 
@@ -23,7 +58,7 @@ func (conn *connection) reader() {
 			break
 		}
 
-		msgHub.route(&RawMsg{
+		conn.hub.route(&RawMsg{
 			Conn:    conn,
 			Payload: message,
 		})
@@ -31,7 +66,7 @@ func (conn *connection) reader() {
 	conn.ws.Close()
 }
 
-func (conn *connection) writer() {
+func (conn *Conn) writer() {
 	for message := range conn.outbox {
 		err := conn.ws.WriteMessage(websocket.TextMessage, message)
 
@@ -42,6 +77,13 @@ func (conn *connection) writer() {
 	conn.ws.Close()
 }
 
-func (conn *connection) kill() {
-	msgHub.unregistration <- conn
+func newConnId() uint64 {
+	var newId uint64
+
+	connectionIdMutex.Lock()
+	connectionIdCounter += 1
+	newId = connectionIdCounter
+	connectionIdMutex.Unlock()
+
+	return newId
 }

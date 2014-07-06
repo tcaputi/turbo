@@ -6,9 +6,9 @@ import (
 
 func TestJoinPaths(t *testing.T) {
 	hub := &MsgHub{
-		registration:   make(chan *connection),
-		unregistration: make(chan *connection),
-		connections:    make(map[uint64]*connection),
+		registration:   make(chan *Conn),
+		unregistration: make(chan *Conn),
+		connections:    make(map[uint64]*Conn),
 	}
 
 	str1 := hub.joinPaths("/", "/dfdf/dsfsdf/ds")

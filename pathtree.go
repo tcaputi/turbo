@@ -8,6 +8,13 @@ type PathTree struct {
 	refs map[string]*PathTreeNode
 }
 
+func NewPathTree() *PathTree {
+	tree := PathTree{
+		refs: make(map[string]*PathTreeNode),
+	}
+	return &tree
+}
+
 type PathTreeNode struct {
 	tree     *PathTree
 	parent   *PathTreeNode

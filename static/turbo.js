@@ -13,11 +13,11 @@ var Turbo = (function () {
         MSG_CMD_UNAUTH    = 10,
         MSG_CMD_ACK       = 11;
 
-    var EVENT_TYPE_VALUE         = 1,
-        EVENT_TYPE_CHILD_ADDED   = 2,
-        EVENT_TYPE_CHILD_CHANGED = 3,
-        EVENT_TYPE_CHILD_MOVED   = 4,
-        EVENT_TYPE_CHILD_REMOVED = 5;
+    var EVENT_TYPE_VALUE         = 0,
+        EVENT_TYPE_CHILD_ADDED   = 1,
+        EVENT_TYPE_CHILD_CHANGED = 2,
+        EVENT_TYPE_CHILD_MOVED   = 3,
+        EVENT_TYPE_CHILD_REMOVED = 4;
 
     var EVENT_TYPE_VALUE_STR         = 'value',
         EVENT_TYPE_CHILD_ADDED_STR   = 'child_added',
