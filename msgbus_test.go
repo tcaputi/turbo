@@ -168,9 +168,10 @@ func TestUnsubscribe(t *testing.T) {
 func TestSubscribeConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	bus := NewMsgBus()
+	goRoutineCount := 20
 
-	wg.Add(20)
-	for i := 0; i < 20; i++ {
+	wg.Add(goRoutineCount)
+	for i := 0; i < goRoutineCount; i++ {
 		conn := Conn{
 			id:            uint64(i + 1),
 			ws:            nil,
@@ -190,7 +191,7 @@ func TestSubscribeConcurrency(t *testing.T) {
 		evtMap := *(bus.evtMaps[node])
 		connSet := *(evtMap[EVENT_TYPE_VALUE])
 		subs := len(connSet)
-		if subs != 20 {
+		if subs != goRoutineCount {
 			t.Error("Some subscriptions were droppped! Recorded subscriptions:", subs)
 		}
 	} else {
