@@ -178,6 +178,7 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 		subNode.destroy()
 		hub.publishValueEvent(subNode.path, nil, conn)
 	})
+	hub.sendAck(conn, msg.Ack, nil, nil, "")
 }
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
