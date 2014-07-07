@@ -165,6 +165,19 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
 }
 
 func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
+	// Remove children first
+	node := hub.bus.pathTree.get(msg.Path)
+	if node == nil {
+		err := "Path does not exist"
+		hub.sendAck(conn, msg.Ack, &err, nil, "")
+		return
+	}
+	// Depth first traversal of path
+	node.cascade(func(subNode *PathTreeNode) {
+		// Kill node and report to listeners
+		subNode.destroy()
+		hub.publishValueEvent(subNode.path, nil, conn)
+	})
 }
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
@@ -258,7 +271,11 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 	// Send the event to child changed listeners
 	if hasChildChangedSubs && hub.hasParent(path) {
 		// Set the event type, parent path; jsonify
-		evt.Event = EVENT_TYPE_CHILD_CHANGED
+		if value == nil {
+			evt.Event = EVENT_TYPE_CHILD_REMOVED
+		} else {
+			evt.Event = EVENT_TYPE_CHILD_CHANGED
+		}
 		evt.Path = hub.parentOf(path)
 		evtJson, err := json.Marshal(evt)
 		if err != nil {
