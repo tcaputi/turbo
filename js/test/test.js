@@ -13,6 +13,7 @@ describe('Turbo', function() {
 
     describe('#on', function() {
         it('should do a thing', function() {
+            console.log(arguments);
             expect('a thing').to.equal('a thing');
         });
 

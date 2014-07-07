@@ -135,7 +135,7 @@ var Turbo = (function() {
 
     var Client = function(url, path) {
         if (url === null || url === undefined || !(typeof url === 'string'))
-            url = window.location.host;
+            throw new Error('url was invalid');
         if (path === null || path === undefined || !(typeof path === 'string'))
             path = '/';
 
