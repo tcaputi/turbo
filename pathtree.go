@@ -129,12 +129,17 @@ func (tree *PathTree) children(path string) *map[*PathTreeNode]bool {
 }
 
 func (node *PathTreeNode) remove() {
-	// Append children
+	// Append children to parent
 	for nodeChild, _ := range node.children {
 		node.parent.children[nodeChild] = true
 		nodeChild.parent = node.parent
 		delete(node.children, nodeChild)
 	}
+	node.destroy()
+}
+
+// Deletes this node from the tree - does not consider children
+func (node *PathTreeNode) destroy() {
 	// Orphan this node
 	delete(node.parent.children, node)
 	node.parent = nil
@@ -142,14 +147,13 @@ func (node *PathTreeNode) remove() {
 	delete(node.tree.refs, node.path)
 }
 
-func (node *PathTreeNode) cascadeRemove() {
-	// Append children
-	for nodeChild, _ := range node.children {
-		nodeChild.cascadeRemove()
+func (node *PathTreeNode) parentIsRoot() bool {
+	return node.parent.path == "/"
+}
+
+func (node *PathTreeNode) cascade(iterator func(*PathTreeNode)) {
+	for child, _ := range node.children {
+		child.cascade(iterator)
 	}
-	// Orphan this node
-	delete(node.parent.children, node)
-	node.parent = nil
-	// Remove from refs
-	delete(node.tree.refs, node.path)
+	iterator(node)
 }

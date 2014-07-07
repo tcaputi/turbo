@@ -114,3 +114,42 @@ func TestRemove(t *testing.T) {
 	tree.put("a/b/c/d/e/f/g/h/i/j")
 	tree.put("/a/b/c/d/")
 }
+
+func TestCascade(t *testing.T) {
+	tree := &PathTree{
+		refs: make(map[string]*PathTreeNode),
+	}
+	paths := [...]string{
+		"/a/b",
+		"/a/b/c",
+		"/a/b/d",
+		"/a/b/e",
+		"/a/b/f",
+		"/a/b/c/1",
+		"/a/b/c/2",
+		"/a/b/c/3",
+		"/a/b/c/4",
+		"/a/b/d/1",
+		"/a/b/d/2",
+		"/a/b/c/1/a",
+		"/a/b/c/1/b",
+		"/a/b/c/1/c",
+	}
+	explored := make(map[*PathTreeNode]bool)
+
+	for index := range paths {
+		tree.put(paths[index])
+	}
+
+	node := tree.get("/a/b")
+	node.cascade(func(subNode *PathTreeNode) {
+		explored[subNode] = true
+		if explored[subNode.parent] {
+			t.Error("Subnode's parent was iterated through before child:", subNode.path, subNode.parent.path)
+		}
+	})
+
+	if len(explored) != len(paths) {
+		t.Error("Explored did not match paths:", len(explored), "vs", len(paths))
+	}
+}
