@@ -83,9 +83,19 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	case MSG_CMD_TRANS_SET:
 		log.Printf("Connection #%d has done trans-set on path: '%s'\n", conn.id, msg.Path)
 		go hub.handleTransSet(&msg, conn)
+	case MSG_CMD_PUSH:
+		log.Printf("Connection #%d has done a push on path: '%s'\n", conn.id, msg.Path)
+		// go hub.handlePush(&msg, conn)
 	case MSG_CMD_TRANS_GET:
 		log.Printf("Connection #%d has done trans-get on path: '%s'\n", conn.id, msg.Path)
 		go hub.handleTransGet(&msg, conn)
+	case MSG_CMD_AUTH:
+		log.Printf("Connection #%d has done an auth on path: '%s'\n", conn.id, msg.Path)
+		// go hub.handleAuth(&msg, conn)
+	case MSG_CMD_UNAUTH:
+		log.Printf("Connection #%d has done an unauth on path: '%s'\n", conn.id, msg.Path)
+		// go hub.handleUnauth(&msg, conn)
+
 	default:
 		log.Fatalf("Connection #%d submitted a message with cmd #%d which is unsupported\n", conn.id, msg.Cmd)
 	}
@@ -319,7 +329,7 @@ func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interf
 	}
 	if hash != "" {
 		// Strings cant be nil in go
-		// YES. I KNOW.
+		// YES. WE KNOW GOOGLE.
 		response.Hash = hash
 	}
 	if errString != nil {

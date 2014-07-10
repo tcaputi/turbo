@@ -10,7 +10,7 @@ func TestSubscribe(t *testing.T) {
 	conn := Conn{
 		id:            1,
 		ws:            nil,
-		outbox:        make(chan []byte),
+		outbox:        make(chan []byte, 256),
 		subscriptions: make(map[*map[*Conn]bool]bool),
 		hub:           nil,
 	}
@@ -132,7 +132,7 @@ func TestUnsubscribe(t *testing.T) {
 	conn := Conn{
 		id:            1,
 		ws:            nil,
-		outbox:        make(chan []byte),
+		outbox:        make(chan []byte, 256),
 		subscriptions: make(map[*map[*Conn]bool]bool),
 		hub:           nil,
 	}
