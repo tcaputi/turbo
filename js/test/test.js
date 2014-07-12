@@ -64,60 +64,66 @@ describe('Turbo', function() {
     });
 	
 	describe('#set and #on', function() {
-        it('should be able to perform a set a root object and tell everyone about it', function() {
+        it('should be able to perform a set a root object and tell everyone about it', function(done) {
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.on('value', function(snapshot){
 				assert.deepEqual(snapshot, testVal);
-				assert.equal(snapshot._path, '/')
+				assert.equal(snapshot._path, '/');
+				done();
 			});
 			turbo.set(testVal);
         });
 
-        it('should be able to add a new direct child to the root and tell the root listener', function(){
+        it('should be able to add a new direct child to the root and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.on('child_added', function(snapshot){
 				assert.deepEqual(snapshot.val(), testVal);
-				assert.equal(snapshot._path, '/a')
+				assert.equal(snapshot._path, '/a');
+				done();
 			});
 			turbo.child('a').set(testVal);
 		});
 		
-		it('should be able to add a new deep child to the root and tell the root listener', function(){
+		it('should be able to add a new deep child to the root and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.on('child_added', function(snapshot){
 				assert.deepEqual(snapshot.val(), testVal);
-				assert.equal(snapshot._path, '/a/b')
+				assert.equal(snapshot._path, '/a/b');
+				done();
 			});
 			turbo.child('a').child('b').set(testVal);
 		});
 		
-		it('should be able to alter a direct child to the root and tell the root listener', function(){
+		it('should be able to alter a direct child to the root and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.set(testVal);
 			turbo.on('child_changed', function(snapshot){
 				assert.deepEqual(snapshot.val(), testVal);
-				assert.equal(snapshot._path, '/a')
+				assert.equal(snapshot._path, '/a');
+				done();
 			});
 			turbo.child('a').set(testVal);
 		});
 		
 		//TODO: add child_removed listener tests for all cases it should be called
-		it('should be able to remove a direct child to the root via set(null) and tell the root listener', function(){
+		it('should be able to remove a direct child to the root via set(null) and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.set(testVal);
 			turbo.on('child_removed', function(oldSnapshot){
 				assert.deepEqual(oldSnapshot.val(), testVal);
-				assert.equal(snapshot._path, '/a')
+				assert.equal(snapshot._path, '/a');
+				done();
 			});
 			turbo.child('a').set(null);
 		});
 		
-		it('should be able to alter a direct child to the root and tell the root listener', function(){
+		it('should be able to alter a direct child to the root and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.set(testVal);
 			turbo.on('child_changed', function(snapshot){
 				assert.deepEqual(snapshot.val(), {a: 'new hi', b: 'there'});
-				assert.equal(snapshot._path, '/a')
+				assert.equal(snapshot._path, '/a');
+				done();
 			});
 			turbo.child('a').set('new hi');
 		});
@@ -136,14 +142,15 @@ describe('Turbo', function() {
     });
 
     describe('#update', function() {
-        it('should be able to perform an update on the root object, leaving existing data untocuhed, and tell everyone about it', function() {
+        it('should be able to perform an update on the root object, leaving existing data untocuhed, and tell everyone about it', function(done) {
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.set(testVal);
 			turbo.on('value', function(snapshot){
 				var newTestVal = testVal;
 				newTestVal.c = 'bye';
 				assert.deepEqual(snapshot, newTestVal);
-				assert.equal(snapshot._path, '/')
+				assert.equal(snapshot._path, '/');
+				done();
 			});
 			turbo.update({c: 'bye'});
 			
@@ -151,12 +158,13 @@ describe('Turbo', function() {
     });
 
     describe('#remove', function() {
-        it('should be able to remove a direct child to the root and tell the root listener', function(){
+        it('should be able to remove a direct child to the root and tell the root listener', function(done){
 			var turbo = new Turbo('http://bitbeam.info', '/test');
 			turbo.set(testVal);
 			turbo.on('child_removed', function(oldSnapshot){
 				assert.deepEqual(oldSnapshot.val(), testVal);
-				assert.equal(snapshot._path, '/a')
+				assert.equal(snapshot._path, '/a');
+				done();
 			});
 			turbo.child('a').remove();
 		});
