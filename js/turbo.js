@@ -81,8 +81,7 @@ var Turbo = (function() {
                                 if (listener = listenerMap[listenerRef]) {
                                     var context = listener.context || listenerRef;
                                     if (listener.callback) {
-                                        // TODO: this needs to be a snapshot
-                                        listener.callback.call(context, msg.value);
+                                        listener.callback.call(context, new DataSnapShot(msg.value, this._url, msg.path));
                                     }
                                 }
                             }
@@ -338,11 +337,11 @@ var Turbo = (function() {
         };
     };
 
-    Client.goOffline = function() {
+    Client.prototype.goOffline = function() {
         _disconnect();
     };
 
-    Client.goOnline = function() {
+    Client.prototype.goOnline = function() {
         _connect(this._url, function(evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
@@ -351,7 +350,7 @@ var Turbo = (function() {
         });
     };
 
-    Client.enableLogging = function(logger, persistent) {
+    Client.prototype.enableLogging = function(logger, persistent) {
         throw 'Turbo does not support enableLogging(...) right now';
     };
 	
