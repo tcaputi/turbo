@@ -353,54 +353,54 @@ var Turbo = (function() {
     Client.prototype.enableLogging = function(logger, persistent) {
         throw 'Turbo does not support enableLogging(...) right now';
     };
-	
-	function DataSnapshot(baseObj, url, path){
-		this._baseObj = baseObj;
-		this._url = url;
-		this._path = path;
-	}
 
-	DataSnapshot.prototype.val = function(){
-		return this._baseObj;
-	};
+    function DataSnapshot(baseObj, url, path){
+        this._baseObj = baseObj;
+        this._url = url;
+        this._path = path;
+    }
 
-	DataSnapshot.prototype.child = function(childName){
-		return new DataSnapshot(this._baseObj[childName]);
-	}
+    DataSnapshot.prototype.val = function(){
+        return this._baseObj;
+    };
 
-	DataSnapshot.prototype.forEach = function(childAction){
-		for(var child in this._baseObj){
-			childAction(child);
-		}
-	};
+    DataSnapshot.prototype.child = function(childName){
+        return new DataSnapshot(this._baseObj[childName]);
+    }
 
-	DataSnapshot.prototype.hasChild = function(childName){
-		return !!this._baseObj[childName];
-	};
+    DataSnapshot.prototype.forEach = function(childAction){
+        for(var child in this._baseObj){
+            childAction(child);
+        }
+    };
 
-	DataSnapshot.prototype.hasChildren = function(){
-		return Object.keys(this._baseObj).length != 0;
-	};
+    DataSnapshot.prototype.hasChild = function(childName){
+        return !!this._baseObj[childName];
+    };
 
-	DataSnapshot.prototype.name = function(){
-		return this._baseObj.split('/').pop();
-	};
+    DataSnapshot.prototype.hasChildren = function(){
+        return Object.keys(this._baseObj).length != 0;
+    };
 
-	DataSnapshot.prototype.numChildren = function(){
-		return Object.keys(this._baseObj).length;
-	};
+    DataSnapshot.prototype.name = function(){
+        return this._baseObj.split('/').pop();
+    };
 
-	DataSnapshot.prototype.ref = function(){
-		return new Client(this._url, this._path);
-	};
+    DataSnapshot.prototype.numChildren = function(){
+        return Object.keys(this._baseObj).length;
+    };
 
-	DataSnapshot.prototype.getPriority = function(){
-		//TODO: are we doing this?
-	};
+    DataSnapshot.prototype.ref = function(){
+        return new Client(this._url, this._path);
+    };
 
-	DataSnapshot.prototype.exportVal = function(){
-		//TODO: are we doing priority? if not this is the same as val()
-	};
+    DataSnapshot.prototype.getPriority = function(){
+        //TODO: are we doing this?
+    };
+
+    DataSnapshot.prototype.exportVal = function(){
+        //TODO: are we doing priority? if not this is the same as val()
+    };
 
     return Client;
 })();
