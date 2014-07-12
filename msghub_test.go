@@ -59,7 +59,6 @@ func TestSendAck(t *testing.T) {
 	hub.sendAck(&conn, 2, nil, jsonVal, "")
 	// With hash
 	// hub.sendAck(&conn, 3, nil, jsonVal, hash(testVal))
-
 	// TODO read through outbox to check the acks
 }
 
