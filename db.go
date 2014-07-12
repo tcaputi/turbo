@@ -33,18 +33,29 @@ func (db *Database) init(mgoPath string, dbName string, collectionName string){
 	db.col = session.DB(dbName).C(collectionName)
 }
 
-func (db *Database) get(path string) (error, interface{}){
+func (db *Database) get(path string) (error, interface{}, int){
 	var result bson.M
-	err := db.col.Find(nil).Select(bson.M{path: 1}).One(&result)
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revPath := "_rev." + path
+	err := db.col.Find(nil).Select(bson.M{dotPath: 1, revPath: 1}).One(&result)
 	if err != nil {
-		return err, nil
+		return err, nil, 0
 	}else{
-		return nil, unwrapValue(path, result)
+		return nil, unwrapValue(dotPath, result), result["_rev"].(bson.M)[path].(int)
 	}
 }
 
 func (db *Database) set(path string, value interface{}) error{
-	update:= bson.M{"$set": bson.M{path: value}}
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revUpdate := bson.M{}
+	parentPath := path
+	lastIndex := len(parentPath) - 1
+	for lastIndex != -1 {
+		parentPath = parentPath[0:lastIndex]
+		revUpdate[parentPath[0:lastIndex]] = 1
+		lastIndex = strings.LastIndex(parentPath, "/")
+	}
+	update:= bson.M{"$set": bson.M{dotPath: value}, "$inc": revUpdate}
 	_, err := db.col.Upsert(nil, update)
 	return err
 }
