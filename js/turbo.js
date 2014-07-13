@@ -67,7 +67,7 @@ var Turbo = (function() {
                 switch (msg.type) {
                     case MSG_CMD_ACK:
                         if (_ackCallbacks[msg.ack]) {
-                            _ackCallbacks[msg.ack](msg.err, msg.res, msg.hash);
+                            _ackCallbacks[msg.ack](msg.err, msg.res, msg.revision);
                             delete _ackCallbacks[msg.ack];
                         }
                         break;
@@ -100,17 +100,17 @@ var Turbo = (function() {
         _ws = undefined;
     };
 
-    var _attemptTransSet = function _attemptTransSet(path, value, hash, transform, done) {
+    var _attemptTransSet = function _attemptTransSet(path, value, rev, transform, done) {
         var ack = _ack++;
         _send(JSON.stringify({
             'cmd': MSG_CMD_TRANS_SET,
             'path': path,
-            'hash': hash,
+            'revision': rev,
             'value': transform(value),
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, newValue, newHash) {
-            if (err === 'conflict') _attemptTransSet(path, newValue, newHash, transform, done);
+        _ackCallbacks[ack] = function(err, newValue, rev) {
+            if (err === 'conflict') _attemptTransSet(path, newValue, rev, transform, done);
             else if (err) done(err);
             else done(undefined, newValue);
         };
@@ -278,9 +278,9 @@ var Turbo = (function() {
             'path': self._path,
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, value, hash) {
+        _ackCallbacks[ack] = function(err, value, rev) {
             if (err) onComplete(err);
-            else _attemptTransSet(self._path, value, hash, transactionUpdate, onComplete);
+            else _attemptTransSet(self._path, value, rev, transactionUpdate, onComplete);
         };
     };
 

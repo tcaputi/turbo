@@ -23,6 +23,19 @@ func unwrapValue(path string, object interface{}) interface{}{
 	return object
 }
 
+func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M){
+	if basePath == "/"{
+		basePath = ""
+	}
+	if _, ok := obj.(bson.M); ok{
+		for key, value := range obj.(bson.M) {
+			generateRevisionUpdate(value, basePath + "/" + key, revSet)
+		}
+	}
+	(*revSet)["_rev." + basePath] = 0
+}
+
+
 func (db *Database) init(mgoPath string, dbName string, collectionName string){
 	session, err := mgo.Dial(mgoPath)
 	if err != nil {
@@ -33,18 +46,23 @@ func (db *Database) init(mgoPath string, dbName string, collectionName string){
 	db.col = session.DB(dbName).C(collectionName)
 }
 
-func (db *Database) get(path string) (error, interface{}){
+func (db *Database) get(path string) (error, interface{}, int){
 	var result bson.M
-	err := db.col.Find(nil).Select(bson.M{path: 1}).One(&result)
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revPath := "_rev." + path
+	err := db.col.Find(nil).Select(bson.M{dotPath: 1, revPath: 1}).One(&result)
 	if err != nil {
-		return err, nil
+		return err, nil, 0
 	}else{
-		return nil, unwrapValue(path, result)
+		return nil, unwrapValue(dotPath, result), result["_rev"].(bson.M)[path].(int)
 	}
 }
 
 func (db *Database) set(path string, value interface{}) error{
-	update:= bson.M{"$set": bson.M{path: value}}
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revUpdate := bson.M{}
+	generateRevisionUpdate(value, path, &revUpdate)
+	update:= bson.M{"$set": bson.M{dotPath: value}, "$inc": revUpdate}
 	_, err := db.col.Upsert(nil, update)
 	return err
 }

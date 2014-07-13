@@ -106,15 +106,15 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 	jsonErr := json.Unmarshal(msg.Value, &unmarshalledValue)
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	} else {
 		log.Println("Now setting value to path ", msg.Path)
 		err := database.set(msg.Path, unmarshalledValue)
 		if err != nil {
 			errStr := err.Error()
-			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+			hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 		} else {
-			hub.sendAck(conn, msg.Ack, nil, nil, "")
+			hub.sendAck(conn, msg.Ack, nil, nil, 0)
 			hub.publishValueEvent(msg.Path, &msg.Value, conn)
 		}
 	}
@@ -161,9 +161,9 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
 			if i == len(propertyMap) {
 				// We're done - send the response
 				if problems == "" {
-					hub.sendAck(conn, msg.Ack, nil, nil, "")
+					hub.sendAck(conn, msg.Ack, nil, nil, 0)
 				} else {
-					hub.sendAck(conn, msg.Ack, &problems, nil, "")
+					hub.sendAck(conn, msg.Ack, &problems, nil, 0)
 				}
 				close(responses)
 				return
@@ -179,7 +179,7 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 	node := hub.bus.pathTree.get(msg.Path)
 	if node == nil {
 		err := "Path does not exist"
-		hub.sendAck(conn, msg.Ack, &err, nil, "")
+		hub.sendAck(conn, msg.Ack, &err, nil, 0)
 		return
 	}
 	// Depth first traversal of path
@@ -188,61 +188,35 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 		subNode.destroy()
 		hub.publishValueEvent(subNode.path, nil, conn)
 	})
-	hub.sendAck(conn, msg.Ack, nil, nil, "")
+	hub.sendAck(conn, msg.Ack, nil, nil, 0)
 }
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 	// db get
-	err, val := database.get(msg.Path)
+	err, _, rev := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
+		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	}
 
-	if val != nil {
-		// grab le hash
-		err, currValHash := hash(val)
-		if err != nil {
-			errStr := err.Error()
-			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-		}
-		// compare le hashes
-		if msg.Hash == string(currValHash[:]) {
-			hub.handleSet(msg, conn) // actually
-			// this should work dafaq
-		} else {
-			errStr := "conflict"
-			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-		}
-	} else {
-		// hashing dont make sense if val is nil
-		// this is fine for now
-		// no - we send nil
+	// compare revisions
+	if msg.Revision == rev {
 		hub.handleSet(msg, conn)
+	} else {
+		errStr := "conflict"
+		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	}
 }
 
 func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	// db get
-	err, val := database.get(msg.Path)
+	err, val, rev := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-		return
+		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
+	}else{
+		hub.sendAck(conn, msg.Ack, nil, val, rev)
 	}
-	if val == nil {
-		hub.sendAck(conn, msg.Ack, nil, nil, "")
-		return
-	}
-	// grab le hash
-	log.Println("Now hashing val:", val)
-	err, currValHash := hash(val)
-	if err != nil {
-		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-	}
-	// send the value with the hash
-	hub.sendAck(conn, msg.Ack, nil, val, string(currValHash[:]))
 }
 
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *Conn) {
@@ -321,17 +295,14 @@ func (hub *MsgHub) joinPaths(base string, extension string) string {
 	return base + extension
 }
 
-func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interface{}, hash string) {
+func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interface{}, rev int) {
 	response := Ack{
 		Type:   MSG_CMD_ACK,
 		Ack:    ack,
 		Result: result,
+		Revision: rev,
 	}
-	if hash != "" {
-		// Strings cant be nil in go
-		// YES. WE KNOW GOOGLE.
-		response.Hash = hash
-	}
+
 	if errString != nil {
 		log.Println("Sending problem back to client in ack form:", *errString)
 		response.Error = *errString

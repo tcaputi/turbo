@@ -32,7 +32,7 @@ type Msg struct {
 	Event byte            `json:"eventType"`
 	Value json.RawMessage `json:"value"`
 	Ack   int             `json:"ack"`
-	Hash  string          `json:"hash"`
+	Revision  int      `json:"revision"`
 }
 
 type ValueEvent struct {
@@ -46,7 +46,7 @@ type Ack struct {
 	Error  string      `json:"err"`
 	Result interface{} `json:"res"`
 	Ack    int         `json:"ack"`
-	Hash   string      `json:"hash"`
+	Revision   int   `json:"revision"`
 }
 
 type RawMsg struct {
