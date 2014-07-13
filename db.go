@@ -23,6 +23,19 @@ func unwrapValue(path string, object interface{}) interface{}{
 	return object
 }
 
+func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M){
+	if basePath == "/"{
+		basePath = ""
+	}
+	if _, ok := obj.(bson.M); ok{
+		for key, value := range obj.(bson.M) {
+			generateRevisionUpdate(value, basePath + "/" + key, revSet)
+		}
+	}
+	(*revSet)["_rev." + basePath] = 0
+}
+
+
 func (db *Database) init(mgoPath string, dbName string, collectionName string){
 	session, err := mgo.Dial(mgoPath)
 	if err != nil {
@@ -48,13 +61,7 @@ func (db *Database) get(path string) (error, interface{}, int){
 func (db *Database) set(path string, value interface{}) error{
 	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
 	revUpdate := bson.M{}
-	parentPath := path
-	lastIndex := len(parentPath) - 1
-	for lastIndex != -1 {
-		parentPath = parentPath[0:lastIndex]
-		revUpdate[parentPath[0:lastIndex]] = 1
-		lastIndex = strings.LastIndex(parentPath, "/")
-	}
+	generateRevisionUpdate(value, path, &revUpdate)
 	update:= bson.M{"$set": bson.M{dotPath: value}, "$inc": revUpdate}
 	_, err := db.col.Upsert(nil, update)
 	return err

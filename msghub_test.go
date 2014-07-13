@@ -39,7 +39,7 @@ func TestSendAck(t *testing.T) {
 	}
 	// Test error
 	errStr := "This is an error"
-	hub.sendAck(&conn, 1, &errStr, nil, "")
+	hub.sendAck(&conn, 1, &errStr, nil, 0)
 	// Test regular w/ empty hash
 	testVal := map[string]interface{}{
 		"key1": "value1",
@@ -56,7 +56,7 @@ func TestSendAck(t *testing.T) {
 		t.FailNow()
 		return
 	}
-	hub.sendAck(&conn, 2, nil, jsonVal, "")
+	hub.sendAck(&conn, 2, nil, jsonVal, 0)
 	// With hash
 	// hub.sendAck(&conn, 3, nil, jsonVal, hash(testVal))
 	// TODO read through outbox to check the acks
