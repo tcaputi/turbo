@@ -1,7 +1,6 @@
 package turbo
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 )
@@ -12,18 +11,15 @@ func TestLocker(t *testing.T) {
 	locker := NewLocker()
 	str := "this is a test string"
 
-	initialWg.Add(30)
-	finalWg.Add(30)
-	for i := 0; i < 30; i++ {
+	initialWg.Add(100)
+	finalWg.Add(100)
+	for i := 0; i < 100; i++ {
 		go (func() {
 			initialWg.Done()
 			locker.lock(str)
 			// Wait for all goroutines to lock first
-			fmt.Println("<->")
 			initialWg.Wait()
-			fmt.Println("->")
 			locker.unlock(str)
-			fmt.Println("<-")
 			finalWg.Done()
 		})()
 	}
