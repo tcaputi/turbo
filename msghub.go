@@ -1,6 +1,9 @@
 package turbo
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/gob"
 	"encoding/json"
 	"log"
 	"strings"
@@ -201,7 +204,7 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 
 	if val != nil {
 		// grab le hash
-		err, currValHash := hash(val)
+		err, currValHash := hub.hashify(val)
 		if err != nil {
 			errStr := err.Error()
 			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
@@ -236,7 +239,7 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	}
 	// grab le hash
 	log.Println("Now hashing val:", val)
-	err, currValHash := hash(val)
+	err, currValHash := hub.hashify(val)
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
@@ -305,6 +308,19 @@ func (hub *MsgHub) hasParent(path string) bool {
 func (hub *MsgHub) parentOf(path string) string {
 	lastIndex := strings.LastIndex(path, "/")
 	return path[0:lastIndex]
+}
+
+func (hub *MsgHub) hashify(obj interface{}) (error, []byte) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(obj)
+	if err != nil {
+		return err, make([]byte, 0)
+	}
+	array := sha1.Sum(buf.Bytes())
+	slice := make([]byte, 20)
+	copy(array[:], slice)
+	return nil, slice
 }
 
 func (hub *MsgHub) joinPaths(base string, extension string) string {

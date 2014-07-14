@@ -1,7 +1,9 @@
 package turbo
 
 import (
-	"json"
+	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -50,7 +52,7 @@ func TestSendAck(t *testing.T) {
 		},
 		"key4": [...]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 	}
-	jsonErr, jsonVal := json.Marshal(testVal)
+	jsonVal, jsonErr := json.Marshal(testVal)
 	if jsonErr != nil {
 		t.Error("Could not serialize testVal", jsonErr)
 		t.FailNow()
@@ -58,9 +60,22 @@ func TestSendAck(t *testing.T) {
 	}
 	hub.sendAck(&conn, 2, nil, jsonVal, "")
 	// With hash
-	hub.sendAck(&conn, 3, nil, jsonVal, hash(testVal))
+	gob.Register(map[string]interface{}{})
+	gob.Register([10]int{})
+	hashErr, hashVal := (&hub).hashify(testVal)
+	if hashErr != nil {
+		t.Error("Could not hash testVal", hashErr)
+		t.FailNow()
+	}
+	hub.sendAck(&conn, 3, nil, jsonVal, string(hashVal[:]))
 
 	// TODO read through outbox to check the acks
+	for i := 0; i < 3; i++ {
+		select {
+		case msg := <-conn.outbox:
+			fmt.Println("Msg", i, "came out with", string(msg[:]))
+		}
+	}
 }
 
 func TestObjHash(t *testing.T) {
