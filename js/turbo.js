@@ -67,7 +67,7 @@ var Turbo = (function() {
                 switch (msg.type) {
                     case MSG_CMD_ACK:
                         if (_ackCallbacks[msg.ack]) {
-                            _ackCallbacks[msg.ack](msg.err, msg.res, msg.hash);
+                            _ackCallbacks[msg.ack](msg.err, msg.res, msg.revision);
                             delete _ackCallbacks[msg.ack];
                         }
                         break;
@@ -81,8 +81,7 @@ var Turbo = (function() {
                                 if (listener = listenerMap[listenerRef]) {
                                     var context = listener.context || listenerRef;
                                     if (listener.callback) {
-                                        // TODO: this needs to be a snapshot
-                                        listener.callback.call(context, msg.value);
+                                        listener.callback.call(context, new DataSnapShot(msg.value, this._url, msg.path));
                                     }
                                 }
                             }
@@ -101,17 +100,17 @@ var Turbo = (function() {
         _ws = undefined;
     };
 
-    var _attemptTransSet = function _attemptTransSet(path, value, hash, transform, done) {
+    var _attemptTransSet = function _attemptTransSet(path, value, rev, transform, done) {
         var ack = _ack++;
         _send(JSON.stringify({
             'cmd': MSG_CMD_TRANS_SET,
             'path': path,
-            'hash': hash,
+            'revision': rev,
             'value': transform(value),
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, newValue, newHash) {
-            if (err === 'conflict') _attemptTransSet(path, newValue, newHash, transform, done);
+        _ackCallbacks[ack] = function(err, newValue, rev) {
+            if (err === 'conflict') _attemptTransSet(path, newValue, rev, transform, done);
             else if (err) done(err);
             else done(undefined, newValue);
         };
@@ -279,9 +278,9 @@ var Turbo = (function() {
             'path': self._path,
             'ack': ack
         }));
-        _ackCallbacks[ack] = function(err, value, hash) {
+        _ackCallbacks[ack] = function(err, value, rev) {
             if (err) onComplete(err);
-            else _attemptTransSet(self._path, value, hash, transactionUpdate, onComplete);
+            else _attemptTransSet(self._path, value, rev, transactionUpdate, onComplete);
         };
     };
 
@@ -338,11 +337,11 @@ var Turbo = (function() {
         };
     };
 
-    Client.goOffline = function() {
+    Client.prototype.goOffline = function() {
         _disconnect();
     };
 
-    Client.goOnline = function() {
+    Client.prototype.goOnline = function() {
         _connect(this._url, function(evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
@@ -351,57 +350,57 @@ var Turbo = (function() {
         });
     };
 
-    Client.enableLogging = function(logger, persistent) {
+    Client.prototype.enableLogging = function(logger, persistent) {
         throw 'Turbo does not support enableLogging(...) right now';
     };
-	
-	function DataSnapshot(baseObj, url, path){
-		this._baseObj = baseObj;
-		this._url = url;
-		this._path = path;
-	}
 
-	DataSnapshot.prototype.val = function(){
-		return this._baseObj;
-	};
+    function DataSnapshot(baseObj, url, path){
+        this._baseObj = baseObj;
+        this._url = url;
+        this._path = path;
+    }
 
-	DataSnapshot.prototype.child = function(childName){
-		return new DataSnapshot(this._baseObj[childName]);
-	}
+    DataSnapshot.prototype.val = function(){
+        return this._baseObj;
+    };
 
-	DataSnapshot.prototype.forEach = function(childAction){
-		for(var child in this._baseObj){
-			childAction(child);
-		}
-	};
+    DataSnapshot.prototype.child = function(childName){
+        return new DataSnapshot(this._baseObj[childName]);
+    }
 
-	DataSnapshot.prototype.hasChild = function(childName){
-		return !!this._baseObj[childName];
-	};
+    DataSnapshot.prototype.forEach = function(childAction){
+        for(var child in this._baseObj){
+            childAction(child);
+        }
+    };
 
-	DataSnapshot.prototype.hasChildren = function(){
-		return Object.keys(this._baseObj).length != 0;
-	};
+    DataSnapshot.prototype.hasChild = function(childName){
+        return !!this._baseObj[childName];
+    };
 
-	DataSnapshot.prototype.name = function(){
-		return this._baseObj.split('/').pop();
-	};
+    DataSnapshot.prototype.hasChildren = function(){
+        return Object.keys(this._baseObj).length != 0;
+    };
 
-	DataSnapshot.prototype.numChildren = function(){
-		return Object.keys(this._baseObj).length;
-	};
+    DataSnapshot.prototype.name = function(){
+        return this._baseObj.split('/').pop();
+    };
 
-	DataSnapshot.prototype.ref = function(){
-		return new Client(this._url, this._path);
-	};
+    DataSnapshot.prototype.numChildren = function(){
+        return Object.keys(this._baseObj).length;
+    };
 
-	DataSnapshot.prototype.getPriority = function(){
-		//TODO: are we doing this?
-	};
+    DataSnapshot.prototype.ref = function(){
+        return new Client(this._url, this._path);
+    };
 
-	DataSnapshot.prototype.exportVal = function(){
-		//TODO: are we doing priority? if not this is the same as val()
-	};
+    DataSnapshot.prototype.getPriority = function(){
+        //TODO: are we doing this?
+    };
+
+    DataSnapshot.prototype.exportVal = function(){
+        //TODO: are we doing priority? if not this is the same as val()
+    };
 
     return Client;
 })();

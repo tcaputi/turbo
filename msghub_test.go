@@ -1,83 +1,67 @@
 package turbo
 
 import (
-	"encoding/gob"
-	"encoding/json"
-	"fmt"
-	"testing"
+	"labix.org/v2/mgo"
+	"labix.org/v2/mgo/bson"
+	"strings"
 )
 
-func TestJoinPaths(t *testing.T) {
-	hub := &MsgHub{
-		registration:   make(chan *Conn),
-		unregistration: make(chan *Conn),
-		connections:    make(map[uint64]*Conn),
-	}
-
-	str1 := hub.joinPaths("/", "/dfdf/dsfsdf/ds")
-	str2 := hub.joinPaths("/234/45/", "/dfdf/dsfsdf/ds")
-	str3 := hub.joinPaths("/234/45", "dfdf/dsfsdf/ds")
-
-	if str1 != "/dfdf/dsfsdf/ds" {
-		t.Error("The path join with str1 failed", str1)
-	}
-	if str2 != "/234/45/dfdf/dsfsdf/ds" {
-		t.Error("The path join with str2 failed", str2)
-	}
-	if str3 != "/234/45/dfdf/dsfsdf/ds" {
-		t.Error("The path join with str3 failed", str3)
-	}
+type Database struct {
+	client *mgo.Session
+	col    *mgo.Collection
 }
 
-func TestSendAck(t *testing.T) {
-	bus := NewMsgBus()
-	hub := NewMsgHub(bus)
-	conn := Conn{
-		id:            1,
-		ws:            nil,
-		outbox:        make(chan []byte, 256),
-		subscriptions: make(map[*map[*Conn]bool]bool),
-		hub:           nil,
-	}
-	// Test error
-	errStr := "This is an error"
-	hub.sendAck(&conn, 1, &errStr, nil, "")
-	// Test regular w/ empty hash
-	testVal := map[string]interface{}{
-		"key1": "value1",
-		"key2": 2,
-		"key3": map[string]interface{}{
-			"subkey1": "value1",
-			"subkey2": "value2",
-		},
-		"key4": [...]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-	}
-	jsonVal, jsonErr := json.Marshal(testVal)
-	if jsonErr != nil {
-		t.Error("Could not serialize testVal", jsonErr)
-		t.FailNow()
-		return
-	}
-	hub.sendAck(&conn, 2, nil, jsonVal, "")
-	// With hash
-	gob.Register(map[string]interface{}{})
-	gob.Register([10]int{})
-	hashErr, hashVal := (&hub).hashify(testVal)
-	if hashErr != nil {
-		t.Error("Could not hash testVal", hashErr)
-		t.FailNow()
-	}
-	hub.sendAck(&conn, 3, nil, jsonVal, string(hashVal[:]))
+var (
+	database = &Database{}
+)
 
-	// TODO read through outbox to check the acks
-	for i := 0; i < 3; i++ {
-		select {
-		case msg := <-conn.outbox:
-			fmt.Println("Msg", i, "came out with", string(msg[:]))
+func unwrapValue(path string, object interface{}) interface{} {
+	pathStrings := strings.Split(path, ".")
+	for i := 0; i < len(pathStrings); i++ {
+		object = object.(bson.M)[pathStrings[i]]
+	}
+	return object
+}
+
+func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M) {
+	if basePath == "/" {
+		basePath = ""
+	}
+	if _, ok := obj.(bson.M); ok {
+		for key, value := range obj.(bson.M) {
+			generateRevisionUpdate(value, basePath+"/"+key, revSet)
 		}
 	}
+	(*revSet)["_rev."+basePath] = 0
 }
 
-func TestObjHash(t *testing.T) {
-	// TODO check our hash actually fucking works
+func (db *Database) init(mgoPath string, dbName string, collectionName string) {
+	session, err := mgo.Dial(mgoPath)
+	if err != nil {
+		panic(err)
+		return
+	}
+	db.client = session
+	db.col = session.DB(dbName).C(collectionName)
+}
+
+func (db *Database) get(path string) (error, interface{}, int) {
+	var result bson.M
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revPath := "_rev." + path
+	err := db.col.Find(nil).Select(bson.M{dotPath: 1, revPath: 1}).One(&result)
+	if err != nil {
+		return err, nil, 0
+	} else {
+		return nil, unwrapValue(dotPath, result), result["_rev"].(bson.M)[path].(int)
+	}
+}
+
+func (db *Database) set(path string, value interface{}) error {
+	dotPath := "_tree" + strings.Replace(path, "/", ".", -1)
+	revUpdate := bson.M{}
+	generateRevisionUpdate(value, path, &revUpdate)
+	update := bson.M{"$set": bson.M{dotPath: value}, "$inc": revUpdate}
+	_, err := db.col.Upsert(nil, update)
+	return err
 }
