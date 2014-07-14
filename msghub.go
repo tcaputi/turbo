@@ -1,9 +1,6 @@
 package turbo
 
 import (
-	"bytes"
-	"crypto/sha1"
-	"encoding/gob"
 	"encoding/json"
 	"log"
 	"strings"
@@ -202,30 +199,8 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	}
 
-<<<<<<< HEAD
-	if val != nil {
-		// grab le hash
-		err, currValHash := hub.hashify(val)
-		if err != nil {
-			errStr := err.Error()
-			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-		}
-		// compare le hashes
-		if msg.Hash == string(currValHash[:]) {
-			hub.handleSet(msg, conn) // actually
-			// this should work dafaq
-		} else {
-			errStr := "conflict"
-			hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-		}
-	} else {
-		// hashing dont make sense if val is nil
-		// this is fine for now
-		// no - we send nil
-=======
 	// compare revisions
 	if msg.Revision == rev {
->>>>>>> bc689c041ce41371a094894e0bb06eb310aca033
 		hub.handleSet(msg, conn)
 	} else {
 		errStr := "conflict"
@@ -239,25 +214,9 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
-	}else{
+	} else {
 		hub.sendAck(conn, msg.Ack, nil, val, rev)
 	}
-<<<<<<< HEAD
-	if val == nil {
-		hub.sendAck(conn, msg.Ack, nil, nil, "")
-		return
-	}
-	// grab le hash
-	log.Println("Now hashing val:", val)
-	err, currValHash := hub.hashify(val)
-	if err != nil {
-		errStr := err.Error()
-		hub.sendAck(conn, msg.Ack, &errStr, nil, "")
-	}
-	// send the value with the hash
-	hub.sendAck(conn, msg.Ack, nil, val, string(currValHash[:]))
-=======
->>>>>>> bc689c041ce41371a094894e0bb06eb310aca033
 }
 
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *Conn) {
@@ -322,19 +281,6 @@ func (hub *MsgHub) parentOf(path string) string {
 	return path[0:lastIndex]
 }
 
-func (hub *MsgHub) hashify(obj interface{}) (error, []byte) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(obj)
-	if err != nil {
-		return err, make([]byte, 0)
-	}
-	array := sha1.Sum(buf.Bytes())
-	slice := make([]byte, 20)
-	copy(array[:], slice)
-	return nil, slice
-}
-
 func (hub *MsgHub) joinPaths(base string, extension string) string {
 	if !strings.HasSuffix(base, "/") {
 		base = base + "/"
@@ -351,9 +297,9 @@ func (hub *MsgHub) joinPaths(base string, extension string) string {
 
 func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interface{}, rev int) {
 	response := Ack{
-		Type:   MSG_CMD_ACK,
-		Ack:    ack,
-		Result: result,
+		Type:     MSG_CMD_ACK,
+		Ack:      ack,
+		Result:   result,
 		Revision: rev,
 	}
 

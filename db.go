@@ -24,14 +24,20 @@ func unwrapValue(path string, object interface{}) interface{} {
 }
 
 func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M) {
-	if basePath == "/" {
-		basePath = ""
-	}
+	// Sanitize path
 	if _, ok := obj.(bson.M); ok {
+		var subPath string
 		for key, value := range obj.(bson.M) {
-			generateRevisionUpdate(value, basePath+"/"+key, revSet)
+			if strings.HasSuffix(basePath, "/") {
+				subPath = basePath + key
+			} else {
+				subPath = basePath + "/" + key
+			}
+
+			generateRevisionUpdate(value, subPath, revSet)
 		}
 	}
+
 	(*revSet)["_rev."+basePath] = 0
 }
 

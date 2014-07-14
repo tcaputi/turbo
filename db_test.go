@@ -21,36 +21,36 @@ func TestGenerateRevUpdate(t *testing.T) {
 			},
 		},
 	}
-	result := generateRevisionUpdate(thing, "/1/2/3", &revSet)
-	if _, _, exists := revSet["/1/2/3/a/b/c"]; !exists {
-		t.Error("/1/2/3/a/b/c did not exist", result)
+	generateRevisionUpdate(thing, "/1/2/3/", &revSet)
+	if _, exists := revSet["_rev./1/2/3/a/b/c"]; !exists {
+		t.Error("/1/2/3/a/b/c did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a/b"]; !exists {
-		t.Error("/1/2/3/a/b did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a/b"]; !exists {
+		t.Error("/1/2/3/a/b did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a"]; !exists {
-		t.Error("/1/2/3/a did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a"]; !exists {
+		t.Error("/1/2/3/a did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a/d/e"]; !exists {
-		t.Error("/1/2/3/a/d/e did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a/d/e"]; !exists {
+		t.Error("/1/2/3/a/d/e did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a/d"]; !exists {
-		t.Error("/1/2/3/a/d did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a/d"]; !exists {
+		t.Error("/1/2/3/a/d did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a/d/f/g"]; !exists {
-		t.Error("/1/2/3/a/d/f/g did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a/d/f/g"]; !exists {
+		t.Error("/1/2/3/a/d/f/g did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3/a/d/f"]; !exists {
-		t.Error("/1/2/3/a/d/f did not exist", result)
+	if _, exists := revSet["_rev./1/2/3/a/d/f"]; !exists {
+		t.Error("/1/2/3/a/d/f did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2/3"]; !exists {
-		t.Error("/1/2/3 did not exist", result)
+	if _, exists := revSet["_rev./1/2/3"]; !exists {
+		t.Error("/1/2/3 did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1/2"]; !exists {
-		t.Error("/1/2 did not exist", result)
+	if _, exists := revSet["_rev./1/2"]; !exists {
+		t.Error("/1/2 did not exist", revSet)
 	}
-	if _, _, exists := revSet["/1"]; !exists {
-		t.Error("/1 did not exist", result)
+	if _, exists := revSet["_rev./1"]; !exists {
+		t.Error("/1 did not exist", revSet)
 	}
 }
 
