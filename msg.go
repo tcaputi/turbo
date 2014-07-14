@@ -22,17 +22,18 @@ const (
 	EVENT_TYPE_CHILD_CHANGED = 2
 	EVENT_TYPE_CHILD_MOVED   = 3
 	EVENT_TYPE_CHILD_REMOVED = 4
+	EVENT_TYPES              = 5
 
-	EVENT_TYPES = 5
+	MSG_ERR_TRANS_CONFLICT = "conflict"
 )
 
 type Msg struct {
-	Cmd   byte            `json:"cmd"`
-	Path  string          `json:"path"`
-	Event byte            `json:"eventType"`
-	Value json.RawMessage `json:"value"`
-	Ack   int             `json:"ack"`
-	Revision  int      `json:"revision"`
+	Cmd      byte            `json:"cmd"`
+	Path     string          `json:"path"`
+	Event    byte            `json:"eventType"`
+	Value    json.RawMessage `json:"value"`
+	Ack      int             `json:"ack"`
+	Revision int             `json:"revision"`
 }
 
 type ValueEvent struct {
@@ -42,11 +43,11 @@ type ValueEvent struct {
 }
 
 type Ack struct {
-	Type   byte        `json:"type"`
-	Error  string      `json:"err"`
-	Result interface{} `json:"res"`
-	Ack    int         `json:"ack"`
-	Revision   int   `json:"revision"`
+	Type     byte        `json:"type"`
+	Error    string      `json:"err"`
+	Result   interface{} `json:"res"`
+	Ack      int         `json:"ack"`
+	Revision int         `json:"revision"`
 }
 
 type RawMsg struct {
