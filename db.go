@@ -23,7 +23,7 @@ func unwrapValue(path string, object interface{}) interface{} {
 	return object
 }
 
-func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M) {
+func generateRevisionUpdateHelper(obj interface{}, basePath string, revSet *bson.M) {
 	// Sanitize path
 	if _, ok := obj.(bson.M); ok {
 		var subPath string
@@ -34,11 +34,18 @@ func generateRevisionUpdate(obj interface{}, basePath string, revSet *bson.M) {
 				subPath = basePath + "/" + key
 			}
 
-			generateRevisionUpdate(value, subPath, revSet)
+			generateRevisionUpdateHelper(value, subPath, revSet)
 		}
 	}
 
 	(*revSet)["_rev."+basePath] = 0
+}
+
+func generateRevisionUpdate(obj interface{}, path string) {
+	revSet := bson.M{}
+	generateRevisionUpdateHelper(obj, path, &revSet)
+	// IWASHERE
+	path =
 }
 
 func (db *Database) init(mgoPath string, dbName string, collectionName string) {
