@@ -17,6 +17,8 @@ type MsgHub struct {
 	bus *MsgBus
 	// The database
 	db *Database
+	// Locker for transactions
+	locker *Locker
 }
 
 func NewMsgHub(bus *MsgBus, db *Database) *MsgHub {
@@ -26,6 +28,7 @@ func NewMsgHub(bus *MsgBus, db *Database) *MsgHub {
 		connections:    make(map[uint64]*Conn),
 		bus:            bus,
 		db:             db,
+		locker:         NewLocker(),
 	}
 	return &hub
 }
@@ -195,8 +198,8 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 }
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
-	// db get
-	err, _, rev := hub.db.get(msg.Path)
+	hub.locker.lock(msg.Path)
+	err, value, rev := database.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
@@ -204,16 +207,18 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 
 	// compare revisions
 	if msg.Revision == rev {
+		hub.locker.unlock(msg.Path)
 		hub.handleSet(msg, conn)
 	} else {
-		errStr := "conflict"
-		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
+		hub.locker.unlock(msg.Path)
+		errStr := MSG_ERR_TRANS_CONFLICT
+		hub.sendAck(conn, msg.Ack, &errStr, value, 0)
 	}
 }
 
 func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
-	// db get
 	err, val, rev := hub.db.get(msg.Path)
+
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
