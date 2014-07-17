@@ -107,9 +107,10 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 	}
 }
 
+// TODO: db should delete, then set new value
 func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 	var unmarshalledValue interface{}
-	jsonErr := json.Unmarshal(msg.Value, &unmarshalledValue)
+	jsonErr := json.Unmarshal(msg.Deltas, &unmarshalledValue)
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
@@ -121,19 +122,19 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 			hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 		} else {
 			hub.sendAck(conn, msg.Ack, nil, nil, 0)
-			hub.publishValueEvent(msg.Path, &msg.Value, conn)
+			hub.publishValueEvent(msg.Path, &msg.Deltas, conn)
 		}
 	}
 }
 
 // TODO add "remove with null" support
 func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
-	if msg.Value == nil {
+	if msg.DeltasMap == nil {
 		return
 	}
 	propertyMap := make(map[string]json.RawMessage)
-	json.Unmarshal(msg.Value, &propertyMap)
-	responses := make(chan *error)
+	json.Unmarshal(msg.DeltasMap, &propertyMap)
+	responses := make(chan *error, 256)
 	for property, value := range propertyMap {
 		go (func(path string, val json.RawMessage) {
 			var unmarshalledValue interface{}
@@ -144,7 +145,9 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
 				responses <- &jsonErr
 				return // ಠ_ಠ
 			} else {
+				hub.locker.lock(msg.Path)
 				err := hub.db.set(path, unmarshalledValue)
+				hub.locker.unlock(msg.Path)
 				if err != nil {
 					responses <- &err
 					return

@@ -6,7 +6,7 @@ import (
 
 const (
 	SLASH = "/"
-    DOT "."
+	DOT   = "."
 )
 
 func joinPaths(basePath string, extension string) string {
@@ -30,17 +30,17 @@ func mongoizePath(path string) string {
 }
 
 func standardizePath(path string) string {
-    if path[0] != SLASH {
-        if path[len(path) - 1] == SLASH {
-            return SLASH + path[:(len(path) - 1])]
-        } else {
-            return SLASH + path
-        }
-    } else {
-        if path[len(path) - 1] == SLASH {
-            return path[:(len(path) - 1])]
-        } else {
-            return path
-        }
-    }
+	if path[0] != SLASH {
+		if path[len(path)-1] == SLASH {
+			return SLASH + path[:(len(path)-1)]
+		} else {
+			return SLASH + path
+		}
+	} else {
+		if path[len(path)-1] == SLASH {
+			return path[:(len(path) - 1)]
+		} else {
+			return path
+		}
+	}
 }

@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	DB_REV_NODE  = "_rev"
-	DB_TREE_NODE = "_tree"
+	DB_REV_NODE      = "_rev"
+	DB_TREE_NODE     = "_tree"
 	DB_REV_INCREMENT = 1
-	DB_SET = "$set"
-	DB_INC = "$inc"
+	DB_SET           = "$set"
+	DB_INC           = "$inc"
 )
 
 type Database struct {
@@ -19,7 +19,7 @@ type Database struct {
 	col    *mgo.Collection
 }
 
-func (db *Database) NewDatabase(mgoPath string, dbName string, collectionName string) *Database, error {
+func NewDatabase(mgoPath string, dbName string, collectionName string) (*Database, error) {
 	session, err := mgo.Dial(mgoPath)
 	if err != nil {
 		return nil, err
@@ -48,11 +48,10 @@ func (db *Database) compileSetArtifacts(obj interface{}, path string) (bson.M, b
 			revMap[(DB_REV_NODE + DOT + key)] = DB_REV_INCREMENT
 			setMap[(DB_TREE_NODE + DOT + mongoizePath(key))] = value
 		}
-		// Handle parent segments of path
+		// Handle parent segments of path for rev set
 		for strings.LastIndex(path, SLASH) > 0 {
 			path = path[:strings.LastIndex(path, SLASH)]
 			revMap[(DB_REV_NODE + DOT + path)] = DB_REV_INCREMENT
-			setMap[(DB_TREE_NODE + DOT + mongoizePath(path))] = value
 		}
 	}
 
