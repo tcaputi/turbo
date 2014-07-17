@@ -132,6 +132,61 @@ var Turbo = (function() {
         return null;
     };
 
+    var _sanitizePath = function _sanitizePath(path) {
+        if (path === undefined || path === null) return '/';
+
+        path = path.replace(/\/{2,}/g, '/');
+        if (path.charAt(0) !== '/') {
+            path = '/' + path;
+        }
+        if (path.charAt(path.length - 1) === '/') {
+            return path.substring(0, path.length - 1);
+        }
+        return path;
+    };
+
+    var _joinPaths = function _joinPaths(base, ext) {
+        base = _sanitizePath(base);
+        return base + '/' + ext;
+    };
+
+    var _flatten = function _flatten(basePath, obj, res) {
+        if (obj === undefined || obj === null || !basePath || !res) return undefined;
+
+        if (typeof obj === 'object') {
+            for (key in obj) {
+                _flatten(basePath, obj[key], res);
+            }
+        } else if (Object.prototype.toString.call(obj) === '[object Array]') {
+            for (var i == 0; i < obj.length; i++) {
+                _flatten(_joinPaths(basePath, i), obj[i], res);
+            }
+        } else {
+            res[basePath] = obj;
+        }
+    };
+
+    var _inflate = function _inflate(basePath, obj) {
+        if (obj === undefined || obj === null || !basePath) return undefined;
+        var res = {},
+            part, parts, currObj, i;
+
+        for (var key in obj) {
+            parts = _sanitizePath(path).split('/');
+            currObj = res;
+            i = 0;
+            for (part in parts) {
+                if (part !== '' && path !== undefined && path !== null) {
+                    if (i < parts.length - 1) {
+                        currObj[part] = (currObj = (currObj[part] || {}));
+                    } else {
+                        currObj[part] = obj[key];
+                    }
+                }
+            }
+        }
+    };
+
     var Client = function(url, path) {
         if (url === null || url === undefined || !(typeof url === 'string'))
             throw new Error('url was invalid');
@@ -143,7 +198,7 @@ var Turbo = (function() {
         if (url.charAt(url.length - 1) === '/') url = url.slice(0, -1);
 
         this._url = url;
-        this._path = path;
+        this._path = _sanitizePath(path);
 
         if (!_ws) _connect(url, function(evt) {
             var msg;
@@ -207,9 +262,7 @@ var Turbo = (function() {
 
     Client.prototype.child = function(childPath) {
         if (!childPath) return this;
-        if (childPath.length >= 1 && childPath[0] === '/') childPath = childPath.substring(1)
-        var newPath = this._path === '/' ? ('/' + childPath) : (this._path + '/' + childPath);
-        return new Client(this._url, newPath);
+        return new Client(this._url, _joinPaths(this._path, childPath));
     };
 
     Client.prototype.parent = function() {
@@ -230,10 +283,13 @@ var Turbo = (function() {
     Client.prototype.set = function(value, onComplete) {
         var self = this;
         var ack = _ack++;
+        var deltas = {};
+
+        _flatten(this._path, value, _deltas);
         _send(JSON.stringify({
             'cmd': MSG_CMD_SET,
             'path': self._path,
-            'value': value,
+            'deltas': deltas,
             'ack': ack
         }));
         _ackCallbacks[ack] = onComplete;
@@ -242,10 +298,13 @@ var Turbo = (function() {
     Client.prototype.update = function(value, onComplete) {
         var self = this;
         var ack = _ack++;
+        var deltas = {};
+
+        _flatten(this._path, value, _deltas);
         _send(JSON.stringify({
             'cmd': MSG_CMD_UPDATE,
             'path': self._path,
-            'value': value,
+            'deltas': deltas,
             'ack': ack
         }));
         _ackCallbacks[ack] = onComplete;
@@ -354,51 +413,51 @@ var Turbo = (function() {
         throw 'Turbo does not support enableLogging(...) right now';
     };
 
-    function DataSnapshot(baseObj, url, path){
+    function DataSnapshot(baseObj, url, path) {
         this._baseObj = baseObj;
         this._url = url;
         this._path = path;
     }
 
-    DataSnapshot.prototype.val = function(){
+    DataSnapshot.prototype.val = function() {
         return this._baseObj;
     };
 
-    DataSnapshot.prototype.child = function(childName){
+    DataSnapshot.prototype.child = function(childName) {
         return new DataSnapshot(this._baseObj[childName]);
     }
 
-    DataSnapshot.prototype.forEach = function(childAction){
-        for(var child in this._baseObj){
+    DataSnapshot.prototype.forEach = function(childAction) {
+        for (var child in this._baseObj) {
             childAction(child);
         }
     };
 
-    DataSnapshot.prototype.hasChild = function(childName){
+    DataSnapshot.prototype.hasChild = function(childName) {
         return !!this._baseObj[childName];
     };
 
-    DataSnapshot.prototype.hasChildren = function(){
+    DataSnapshot.prototype.hasChildren = function() {
         return Object.keys(this._baseObj).length != 0;
     };
 
-    DataSnapshot.prototype.name = function(){
+    DataSnapshot.prototype.name = function() {
         return this._baseObj.split('/').pop();
     };
 
-    DataSnapshot.prototype.numChildren = function(){
+    DataSnapshot.prototype.numChildren = function() {
         return Object.keys(this._baseObj).length;
     };
 
-    DataSnapshot.prototype.ref = function(){
+    DataSnapshot.prototype.ref = function() {
         return new Client(this._url, this._path);
     };
 
-    DataSnapshot.prototype.getPriority = function(){
+    DataSnapshot.prototype.getPriority = function() {
         //TODO: are we doing this?
     };
 
-    DataSnapshot.prototype.exportVal = function(){
+    DataSnapshot.prototype.exportVal = function() {
         //TODO: are we doing priority? if not this is the same as val()
     };
 

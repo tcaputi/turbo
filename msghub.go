@@ -15,14 +15,17 @@ type MsgHub struct {
 	unregistration chan *Conn
 	// Message bus reference
 	bus *MsgBus
+	// The database
+	db *Database
 }
 
-func NewMsgHub(bus *MsgBus) *MsgHub {
+func NewMsgHub(bus *MsgBus, db *Database) *MsgHub {
 	hub := MsgHub{
 		registration:   make(chan *Conn),
 		unregistration: make(chan *Conn),
 		connections:    make(map[uint64]*Conn),
 		bus:            bus,
+		db:             db,
 	}
 	return &hub
 }
@@ -109,7 +112,7 @@ func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	} else {
 		log.Println("Now setting value to path ", msg.Path)
-		err := database.set(msg.Path, unmarshalledValue)
+		err := hub.db.set(msg.Path, unmarshalledValue)
 		if err != nil {
 			errStr := err.Error()
 			hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
@@ -138,7 +141,7 @@ func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
 				responses <- &jsonErr
 				return // ಠ_ಠ
 			} else {
-				err := database.set(path, unmarshalledValue)
+				err := hub.db.set(path, unmarshalledValue)
 				if err != nil {
 					responses <- &err
 					return
@@ -193,7 +196,7 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 	// db get
-	err, _, rev := database.get(msg.Path)
+	err, _, rev := hub.db.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
@@ -210,7 +213,7 @@ func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 
 func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	// db get
-	err, val, rev := database.get(msg.Path)
+	err, val, rev := hub.db.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)

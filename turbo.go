@@ -25,13 +25,15 @@ func (t *Turbo) Handler(res http.ResponseWriter, req *http.Request) {
 // TODO this should take config
 func New(connectionString, dbName, colName string) (error, *Turbo) {
 	bus := NewMsgBus()
-	hub := NewMsgHub(bus)
+	db, err := NewDatabase(connectionString, dbName, colName)
+	if err != nil {
+		return err, nil
+	}
+	hub := NewMsgHub(bus, db)
 	turbo := Turbo{
 		bus: bus,
 		hub: hub,
 	}
-	// Load db configuation
-	database.init(connectionString, dbName, colName)
 	// Run the hub
 	go hub.listen()
 
