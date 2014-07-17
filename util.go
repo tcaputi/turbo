@@ -30,14 +30,14 @@ func mongoizePath(path string) string {
 }
 
 func standardizePath(path string) string {
-	if path[0] != SLASH {
-		if path[len(path)-1] == SLASH {
+	if path[0] != SLASH[0] {
+		if path[len(path)-1] == SLASH[0] {
 			return SLASH + path[:(len(path)-1)]
 		} else {
 			return SLASH + path
 		}
 	} else {
-		if path[len(path)-1] == SLASH {
+		if path[len(path)-1] == SLASH[0] {
 			return path[:(len(path) - 1)]
 		} else {
 			return path

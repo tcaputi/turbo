@@ -5,11 +5,21 @@ import (
 	"testing"
 )
 
-func TestGenerateRevUpdate(t *testing.T) {
+var (
+	db *Database
+)
+
+func init() {
+	if db != nil return
+	db = NewDatabase("mongodb://bitbeam.info:27017", "test", "entries")
+}
+
+func TestCompileSetArtifacts(t *testing.T) {
+	init()
 	revSet := bson.M{}
 	database.init("mongodb://bitbeam.info:27017", "test", "entries")
-	thing := bson.M{
-		"a": bson.M{
+	thing := map[string]interface{}{
+		"/1/2/3/": bson.M{
 			"b": bson.M{
 				"c": "hi",
 			},
@@ -55,6 +65,7 @@ func TestGenerateRevUpdate(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	init()
 	database.init("mongodb://bitbeam.info:27017", "test", "entries")
 	err := database.set("/bransonapp", bson.M{"testPath": "hi"})
 	if err != nil {
@@ -63,6 +74,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestGetAll(t *testing.T) {
+	init()
 	database.init("mongodb://bitbeam.info:27017", "test", "entries")
 	err, result, _ := database.get("/bransonapp")
 	if err != nil {
@@ -73,6 +85,7 @@ func TestGetAll(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	init()
 	database.init("mongodb://bitbeam.info:27017", "test", "entries")
 	err, result, _ := database.get("/bransonapp/testPath")
 	if err != nil {

@@ -202,7 +202,7 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
 	hub.locker.lock(msg.Path)
-	err, value, rev := database.get(msg.Path)
+	err, value, rev := hub.db.get(msg.Path)
 	if err != nil {
 		errStr := err.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
@@ -249,8 +249,8 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 	}
 	// This is what we are sending subscribers to a value related event
 	evt := ValueEvent{
-		Path:  path,
-		Value: value,
+		Path:   path,
+		Deltas: value,
 	}
 	// Send the event to value listeners
 	if hasValueSubs {
@@ -310,7 +310,7 @@ func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interf
 	response := Ack{
 		Type:     MSG_CMD_ACK,
 		Ack:      ack,
-		Result:   result,
+		Deltas:   result,
 		Revision: rev,
 	}
 

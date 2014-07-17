@@ -43,10 +43,10 @@ func (db *Database) compileSetArtifacts(obj interface{}, path string) (bson.M, b
 	setMap := bson.M{}
 
 	if _, ok := obj.(map[string]interface{}); ok {
-		var subPath string
 		for key, value := range obj.(map[string]interface{}) {
-			revMap[(DB_REV_NODE + DOT + key)] = DB_REV_INCREMENT
-			setMap[(DB_TREE_NODE + DOT + mongoizePath(key))] = value
+			fullPath := joinPaths(path, key)
+			revMap[(DB_REV_NODE + DOT + fullPath)] = DB_REV_INCREMENT
+			setMap[(DB_TREE_NODE + DOT + mongoizePath(fullPath))] = value
 		}
 		// Handle parent segments of path for rev set
 		for strings.LastIndex(path, SLASH) > 0 {
