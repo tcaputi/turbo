@@ -157,3 +157,7 @@ func (node *PathTreeNode) cascade(iterator func(*PathTreeNode)) {
 	}
 	iterator(node)
 }
+
+func (node *PathTreeNode) hasImmediateParent() bool {
+	return strings.LastIndex(node.path, SLASH) == (len(node.parent.path) - 1)
+}

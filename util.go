@@ -44,3 +44,22 @@ func standardizePath(path string) string {
 		}
 	}
 }
+
+func parentOf(path string) (string, bool) {
+	index := strings.LastIndex(path, SLASH)
+	if index <= 0 {
+		return path, false
+	}
+	return path[:index], true
+}
+
+func cascadePath(path string, parentsOnly bool, iterator func(string)) {
+	if !parentsOnly {
+		iterator(path)
+	}
+	path, isDone := parentOf(path)
+	for !isDone {
+		iterator(path)
+		path, isDone := parentOf(path)
+	}
+}

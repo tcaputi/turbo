@@ -6,11 +6,7 @@ import (
 )
 
 func TestJoinPaths(t *testing.T) {
-	hub := &MsgHub{
-		registration:   make(chan *Conn),
-		unregistration: make(chan *Conn),
-		connections:    make(map[uint64]*Conn),
-	}
+	hub := NewMsgHub(nil, nil)
 
 	str1 := hub.joinPaths("/", "/dfdf/dsfsdf/ds")
 	str2 := hub.joinPaths("/234/45/", "/dfdf/dsfsdf/ds")
@@ -29,7 +25,7 @@ func TestJoinPaths(t *testing.T) {
 
 func TestSendAck(t *testing.T) {
 	bus := NewMsgBus()
-	hub := NewMsgHub(bus)
+	hub := NewMsgHub(bus, nil)
 	conn := Conn{
 		id:            1,
 		ws:            nil,

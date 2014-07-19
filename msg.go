@@ -28,25 +28,24 @@ const (
 )
 
 type Msg struct {
-	Cmd       byte            `json:"cmd"`
-	Path      string          `json:"path"`
-	Event     byte            `json:"eventType"`
-	Deltas    json.RawMessage `json:"deltas"`
-	DeltasMap json.RawMessage `json:"deltasMap"`
-	Ack       int             `json:"ack"`
-	Revision  int             `json:"revision"`
+	Cmd      byte            `json:"cmd"`
+	Path     string          `json:"path"`
+	Event    byte            `json:"eventType"`
+	Data     json.RawMessage `json:"data"`
+	Ack      int             `json:"ack"`
+	Revision int             `json:"revision"`
 }
 
 type ValueEvent struct {
-	Path   string           `json:"path"`
-	Event  byte             `json:"eventType"`
-	Deltas *json.RawMessage `json:"deltas"`
+	Path  string      `json:"path"`
+	Event byte        `json:"eventType"`
+	Data  interface{} `json:"data"`
 }
 
 type Ack struct {
 	Type     byte        `json:"type"`
 	Error    string      `json:"err"`
-	Deltas   interface{} `json:"deltas"`
+	Data     interface{} `json:"data"`
 	Value    interface{} `json:"value"`
 	Ack      int         `json:"ack"`
 	Revision int         `json:"revision"`

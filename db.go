@@ -8,9 +8,11 @@ import (
 
 const (
 	DB_REV_NODE      = "_rev"
+	DB_REL_NODE      = "_rel"
 	DB_TREE_NODE     = "_tree"
 	DB_REV_INCREMENT = 1
 	DB_SET           = "$set"
+	DB_SET_ONCE      = "$setOnInsert"
 	DB_INC           = "$inc"
 )
 
@@ -38,35 +40,51 @@ func (db *Database) unwrapValue(path string, object interface{}) interface{} {
 	return object
 }
 
-func (db *Database) compileSetArtifacts(obj interface{}, path string) (bson.M, bson.M) {
-	revMap := bson.M{}
-	setMap := bson.M{}
-
-	if _, ok := obj.(map[string]interface{}); ok {
-		for key, value := range obj.(map[string]interface{}) {
-			fullPath := joinPaths(path, key)
-			revMap[(DB_REV_NODE + DOT + fullPath)] = DB_REV_INCREMENT
-			setMap[(DB_TREE_NODE + DOT + mongoizePath(fullPath))] = value
+func (db *Database) traceDataRecursive(data interface{}, path string, rev *bson.M) {
+	// First check wtf data is
+	dataMap, isMap := data.(map[string]interface{})
+	dataBsonM, isBsonM := data.(bson.M)
+	// If its a pseudo obj type, iterate over its fields
+	if isMap {
+		for key, val := range dataMap {
+			db.traceDataRecursive(val, joinPaths(path, key), rev)
 		}
-		// Handle parent segments of path for rev set
-		for strings.LastIndex(path, SLASH) > 0 {
-			path = path[:strings.LastIndex(path, SLASH)]
-			revMap[(DB_REV_NODE + DOT + path)] = DB_REV_INCREMENT
+	} else if isBsonM {
+		for key, val := range dataBsonM {
+			db.traceDataRecursive(val, joinPaths(path, key), rev)
 		}
 	}
+	// Add this to the rev
+	(*rev)[(DB_REV_NODE + DOT + path)] = 1
+}
 
-	return revMap, setMap
+func (db *Database) traceData(data interface{}, path string) *bson.M {
+	rev := bson.M{}
+	// Traverse obj to build rev
+	db.traceDataRecursive(data, path, &rev)
+	// Now traverse upwards
+	for {
+		parentPath, hasParentPath := parentOf(path)
+		if !hasParentPath {
+			break
+		} else {
+			path = parentPath
+			rev[(DB_REV_NODE + DOT + path)] = 1
+		}
+	}
+	return &rev
 }
 
 func (db *Database) get(path string) (error, interface{}, int) {
 	var result bson.M
 	dotPath := DB_TREE_NODE + DOT + mongoizePath(path)
-	revPath := DB_REV_NODE + path
+	revPath := DB_REV_NODE + DOT + path
+	query := bson.M{}
+	// Set the query paths
+	query[dotPath] = 1
+	query[revPath] = 1
 
-	err := db.col.Find(nil).Select(bson.M{
-		dotPath: 1,
-		revPath: 1,
-	}).One(&result)
+	err := db.col.Find(nil).Select(query).One(&result)
 	if err != nil {
 		return err, nil, -1
 	} else {
@@ -74,11 +92,14 @@ func (db *Database) get(path string) (error, interface{}, int) {
 	}
 }
 
-func (db *Database) set(path string, value interface{}) error {
-	revMap, setMap := db.compileSetArtifacts(value, path)
-	_, err := db.col.Upsert(nil, bson.M{
-		DB_SET: setMap,
-		DB_INC: revMap,
-	})
+func (db *Database) set(path string, data interface{}) error {
+	rev := db.traceData(data, path)
+	query := bson.M{}
+	// Set the query paths
+	query[DB_SET] = bson.M{
+		(DB_TREE_NODE + DOT + mongoizePath(path)): data,
+	}
+	query[DB_INC] = *rev
+	_, err := db.col.Upsert(nil, query)
 	return err
 }

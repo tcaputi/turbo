@@ -110,46 +110,51 @@ func (hub *MsgHub) route(rawMsg *RawMsg) {
 // TODO: db should delete, then set new value
 func (hub *MsgHub) handleSet(msg *Msg, conn *Conn) {
 	var unmarshalledValue interface{}
-	jsonErr := json.Unmarshal(msg.Deltas, &unmarshalledValue)
+	jsonErr := json.Unmarshal(msg.Data, &unmarshalledValue)
 	if jsonErr != nil {
 		errStr := jsonErr.Error()
 		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 	} else {
 		log.Println("Now setting value to path ", msg.Path)
-		err := hub.db.set(msg.Path, unmarshalledValue)
-		if err != nil {
-			errStr := err.Error()
+		// Notify all listeners of recursive value change
+		hub.publishAndDestroy(msg.Path)
+		// Set the new value
+		setErr := hub.db.set(msg.Path, unmarshalledValue)
+		if setErr != nil {
+			log.Fatalln("Couldn't set node value", setErr)
+			errStr := setErr.Error()
 			hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
 		} else {
 			hub.sendAck(conn, msg.Ack, nil, nil, 0)
-			hub.publishValueEvent(msg.Path, &msg.Deltas, conn)
+			hub.publishValueEvent(msg.Path, &msg.Data, conn)
 		}
 	}
 }
 
 // TODO add "remove with null" support
 func (hub *MsgHub) handleUpdate(msg *Msg, conn *Conn) {
-	if msg.DeltasMap == nil {
+	if msg.DataMap == nil {
 		return
 	}
 	propertyMap := make(map[string]json.RawMessage)
-	json.Unmarshal(msg.DeltasMap, &propertyMap)
+	json.Unmarshal(msg.DataMap, &propertyMap)
 	responses := make(chan *error, 256)
 	for property, value := range propertyMap {
 		go (func(path string, val json.RawMessage) {
 			var unmarshalledValue interface{}
-
 			newPath := hub.joinPaths(msg.Path, path)
 			jsonErr := json.Unmarshal(val, &unmarshalledValue)
 			if jsonErr != nil {
+				log.Fatalln("Couldn't marshal new value json", jsonErr)
 				responses <- &jsonErr
 				return // ಠ_ಠ
 			} else {
-				hub.locker.lock(msg.Path)
-				err := hub.db.set(path, unmarshalledValue)
-				hub.locker.unlock(msg.Path)
-				if err != nil {
-					responses <- &err
+				hub.locker.lock(newPath)
+				setErr := hub.db.set(newPath, unmarshalledValue)
+				hub.locker.unlock(newPath)
+				if setErr != nil {
+					log.Fatalln("Couldn't set node value", setErr)
+					responses <- &setErr
 					return
 				}
 			}
@@ -192,12 +197,17 @@ func (hub *MsgHub) handleRemove(msg *Msg, conn *Conn) {
 		return
 	}
 	// Depth first traversal of path
-	node.cascade(func(subNode *PathTreeNode) {
-		// Kill node and report to listeners
-		subNode.destroy()
-		hub.publishValueEvent(subNode.path, nil, conn)
-	})
-	hub.sendAck(conn, msg.Ack, nil, nil, 0)
+	hub.publishAndDestroy(node.path)
+	hub.locker.lock(node.path)
+	setErr := hub.db.set(node.path, nil)
+	hub.locker.unlock(node.path)
+	if setErr != nil {
+		log.Fatalln("Couldn't set node value", setErr)
+		errStr := setErr.Error()
+		hub.sendAck(conn, msg.Ack, &errStr, nil, 0)
+	} else {
+		hub.sendAck(conn, msg.Ack, nil, nil, 0)
+	}
 }
 
 func (hub *MsgHub) handleTransSet(msg *Msg, conn *Conn) {
@@ -230,6 +240,42 @@ func (hub *MsgHub) handleTransGet(msg *Msg, conn *Conn) {
 	}
 }
 
+func (hub *MsgHub) publishAndDestroy(path string) {
+	node := hub.bus.pathTree.get(path)
+
+	if node != nil {
+		node.cascade(func(child *PathTreeNode) {
+			evt := ValueEvent{}
+			evt.Event = EVENT_TYPE_VALUE
+			evt.Data = nil
+			evt.Path = child.path
+			evtJson, jsonErr := json.Marshal(evt)
+			if jsonErr != nil {
+				log.Fatalln("Couldn't marshal event json", jsonErr)
+			} else {
+				hub.bus.publish(EVENT_TYPE_VALUE, child.path, &evtJson)
+			}
+			// Check any parents for the child removed
+			if child.hasImmediateParent() {
+				// We need to get the child value
+				getErr, childVal, _ := hub.db.get(child.path)
+				if getErr != nil {
+					log.Fatalln("Couldn't fetch node value", getErr)
+					return
+				}
+				evt.Event = EVENT_TYPE_CHILD_REMOVED
+				evt.Data = childVal
+				evtJson, jsonErr = json.Marshal(evt)
+				if jsonErr != nil {
+					log.Fatalln("Couldn't marshal event json", jsonErr)
+				} else {
+					hub.bus.publish(EVENT_TYPE_CHILD_REMOVED, child.parent.path, &evtJson)
+				}
+			}
+		})
+	}
+}
+
 func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *Conn) {
 	var hasValueSubs bool
 	var hasChildChangedSubs bool
@@ -249,8 +295,8 @@ func (hub *MsgHub) publishValueEvent(path string, value *json.RawMessage, conn *
 	}
 	// This is what we are sending subscribers to a value related event
 	evt := ValueEvent{
-		Path:   path,
-		Deltas: value,
+		Path: path,
+		Data: value,
 	}
 	// Send the event to value listeners
 	if hasValueSubs {
@@ -310,7 +356,7 @@ func (hub *MsgHub) sendAck(conn *Conn, ack int, errString *string, result interf
 	response := Ack{
 		Type:     MSG_CMD_ACK,
 		Ack:      ack,
-		Deltas:   result,
+		Data:     result,
 		Revision: rev,
 	}
 

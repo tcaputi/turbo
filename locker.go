@@ -22,7 +22,19 @@ func NewLocker() *Locker {
 	}
 }
 
-func (locker *Locker) lock(key string) {
+func (locker *Locker) lock(path string) {
+	cascadePath(path, false, func(currPath string) {
+		locker.lockOne(currPath)
+	})
+}
+
+func (locker *Locker) unlock(path string) {
+	cascadePath(path, false, func(currPath string) {
+		locker.unlockOne(currPath)
+	})
+}
+
+func (locker *Locker) lockOne(key string) {
 	if locker.locks[key] == nil {
 		locker.locks[key] = &Lock{
 			main:   &sync.Mutex{},
@@ -35,7 +47,7 @@ func (locker *Locker) lock(key string) {
 	locker.locks[key].lock()
 }
 
-func (locker *Locker) unlock(key string) {
+func (locker *Locker) unlockOne(key string) {
 	if locker.locks[key] == nil {
 		return
 	}
