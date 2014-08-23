@@ -253,7 +253,7 @@ func (hub *MsgHub) publishAndDestroy(path string) {
 			if jsonErr != nil {
 				log.Fatalln("Couldn't marshal event json", jsonErr)
 			} else {
-				hub.bus.publish(EVENT_TYPE_VALUE, child.path, &evtJson)
+				hub.bus.publish(EVENT_TYPE_VALUE, child.path, evtJson)
 			}
 			// Check any parents for the child removed
 			if child.hasImmediateParent() {
@@ -269,7 +269,7 @@ func (hub *MsgHub) publishAndDestroy(path string) {
 				if jsonErr != nil {
 					log.Fatalln("Couldn't marshal event json", jsonErr)
 				} else {
-					hub.bus.publish(EVENT_TYPE_CHILD_REMOVED, child.parent.path, &evtJson)
+					hub.bus.publish(EVENT_TYPE_CHILD_REMOVED, child.parent.path, evtJson)
 				}
 			}
 		})

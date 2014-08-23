@@ -57,9 +57,9 @@ func cascadePath(path string, parentsOnly bool, iterator func(string)) {
 	if !parentsOnly {
 		iterator(path)
 	}
-	path, isDone := parentOf(path)
+	var parentPath, isDone = parentOf(path)
 	for !isDone {
-		iterator(path)
-		path, isDone := parentOf(path)
+		iterator(parentPath)
+		parentPath, isDone = parentOf(path)
 	}
 }

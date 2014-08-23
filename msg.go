@@ -32,6 +32,7 @@ type Msg struct {
 	Path     string          `json:"path"`
 	Event    byte            `json:"eventType"`
 	Data     json.RawMessage `json:"data"`
+	DataMap  json.RawMessage `json:"dataMap"`
 	Ack      int             `json:"ack"`
 	Revision int             `json:"revision"`
 }
