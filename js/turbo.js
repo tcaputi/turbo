@@ -43,9 +43,10 @@ var Turbo = (function() {
         }
     };
 
-    var _connect = function _connect(url, onConnect) {
+    var _connect = function _connect(url, onConnect, onError, onClose) {
         console.log('Connecting to ' + url);
         _ws = new WebSocket(url);
+
         _ws.onopen = function(evt) {
             _isOffline = false;
             if (onConnect) onConnect(evt);
@@ -53,9 +54,11 @@ var Turbo = (function() {
         };
         _ws.onclose = function(evt) {
             _isOffline = true;
+            if (onClose) onClose();
             console.log('Connection closed.', evt);
         };
         _ws.onerror = function(evt) {
+            if (onError) onError(evt);
             console.log('Connection had an error.', evt);
         };
         _ws.onmessage = function(evt) {
@@ -132,14 +135,30 @@ var Turbo = (function() {
         return null;
     };
 
+    var _sanitizeUrl = function _sanitizeUrl(url) {
+        if (url.charAt(0) === '/') url = window.location.host + url;
+        // Replace // with /
+        url = url.replace(/(\w+):(\/+)/g, 'ws://');
+        if (url.indexOf('ws://') !== 0) {
+            url = 'ws://' + url;
+        }
+        // Cleans off trailing /
+        if (url.charAt(url.length - 1) === '/' && url.length > 1) {
+            return url.substring(0, url.length - 1);
+        }
+        return url;
+    };
+
     var _sanitizePath = function _sanitizePath(path) {
         if (path === undefined || path === null) return '/';
-
+        // Replace // with /
         path = path.replace(/\/{2,}/g, '/');
+        // Make sure path starts with /
         if (path.charAt(0) !== '/') {
             path = '/' + path;
         }
-        if (path.charAt(path.length - 1) === '/') {
+        // Cleans off trailing /
+        if (path.charAt(path.length - 1) === '/' && path.length > 1) {
             return path.substring(0, path.length - 1);
         }
         return path;
@@ -158,7 +177,7 @@ var Turbo = (function() {
                 _flatten(basePath, obj[key], res);
             }
         } else if (Object.prototype.toString.call(obj) === '[object Array]') {
-            for (var i == 0; i < obj.length; i++) {
+            for (var i = 0; i < obj.length; i++) {
                 _flatten(_joinPaths(basePath, i), obj[i], res);
             }
         } else {
@@ -187,20 +206,17 @@ var Turbo = (function() {
         }
     };
 
+    // Constructor
     var Client = function(url, path) {
         if (url === null || url === undefined || !(typeof url === 'string'))
             throw new Error('url was invalid');
         if (path === null || path === undefined || !(typeof path === 'string'))
             path = '/';
 
-        if (url.charAt(0) === '/') url = window.location.host + url;
-        if (url.indexOf('ws://') !== 0) url = 'ws://' + url;
-        if (url.charAt(url.length - 1) === '/') url = url.slice(0, -1);
-
-        this._url = url;
+        this._url = _sanitizeUrl(url);
         this._path = _sanitizePath(path);
 
-        if (!_ws) _connect(url, function(evt) {
+        if (!_ws) _connect(this._url, function(evt) {
             var msg;
             while ((msg = _offlineQueue.shift())) {
                 _ws.send(msg);
@@ -277,7 +293,7 @@ var Turbo = (function() {
     };
 
     Client.prototype.toString = function() {
-        return this._path;
+        return this._url + this._path;
     };
 
     Client.prototype.set = function(value, onComplete) {
