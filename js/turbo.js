@@ -173,7 +173,7 @@ var Turbo = (function() {
         if (obj === undefined || obj === null || !basePath || !res) return undefined;
 
         if (typeof obj === 'object') {
-            for (key in obj) {
+            for (var key in obj) {
                 _flatten(basePath, obj[key], res);
             }
         } else if (Object.prototype.toString.call(obj) === '[object Array]') {
@@ -226,8 +226,8 @@ var Turbo = (function() {
 
     Client.prototype.on = function(eventTypeStr, callback, cancelCallback, context) {
         var eventType = _eventType(eventTypeStr);
-        if (!eventType)
-            throw 'Unsupported event type \'' + eventTypeStr + '\'';
+        if (!eventType && eventType !== 0)
+            throw new Error('Unsupported event type \'' + eventTypeStr + '\'');
 
         if (!callback || typeof callback !== 'function') throw 'Callback was not a function';
         if (cancelCallback && !context && typeof cancelCallback === 'object') {
@@ -256,7 +256,7 @@ var Turbo = (function() {
 
     Client.prototype.off = function(eventType, callback, context) {
         var eventType = _eventType(eventTypeStr);
-        if (!eventType)
+        if (!eventType && eventType !== 0)
             throw 'Unsupported event type \'' + eventTypeStr + '\'';
 
         if (!callback || typeof callback !== 'function') throw 'Callback was not a function';
@@ -301,7 +301,7 @@ var Turbo = (function() {
         var ack = _ack++;
         var deltas = {};
 
-        _flatten(this._path, value, _deltas);
+        _flatten(this._path, value, deltas);
         _send(JSON.stringify({
             'cmd': MSG_CMD_SET,
             'path': self._path,
@@ -316,7 +316,7 @@ var Turbo = (function() {
         var ack = _ack++;
         var deltas = {};
 
-        _flatten(this._path, value, _deltas);
+        _flatten(this._path, value, deltas);
         _send(JSON.stringify({
             'cmd': MSG_CMD_UPDATE,
             'path': self._path,

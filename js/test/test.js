@@ -1,5 +1,5 @@
 var assert = chai.assert;
-var testValue = {
+var testVal = {
     a: 'hi',
     b: 'there'
 };
