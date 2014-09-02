@@ -1,0 +1,18 @@
+<html>
+    <head>
+        <title>Turbo Sandbox</title>
+    </head>
+    <body>
+		<script type="text/javascript">
+		var ws = new WebSocket('ws://localhost:4000/ws');
+		ws.onopen = function(evt){
+			console.log('hi');
+			ws.send('hi, im a client');
+			
+			ws.onmessage = function (event) {
+			  console.log(event.data);
+			}
+		}
+		</script>
+    </body>
+</html>
